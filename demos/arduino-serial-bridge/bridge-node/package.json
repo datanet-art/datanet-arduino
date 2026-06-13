@@ -1,0 +1,14 @@
+{
+  "name": "arduino-serial-bridge",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Bridges Arduino/Teensy serial output to DataNet",
+  "scripts": {
+    "start": "node bridge.mjs"
+  },
+  "dependencies": {
+    "@datanet/core": "^0.1.0",
+    "@serialport/parser-readline": "^12.0.0",
+    "serialport": "^12.0.0"
+  }
+}
