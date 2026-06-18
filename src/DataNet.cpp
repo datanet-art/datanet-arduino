@@ -499,7 +499,7 @@ bool DataNet::_fetchJwt() {
     // For production, use setFingerprint() or setTrustAnchors() instead.
     secureClient.setInsecure();
 
-    ESP8266HTTPClient http;
+    HTTPClient http;
     http.begin(secureClient, url);
     http.addHeader(F("Content-Type"), F("application/json"));
 
@@ -831,7 +831,7 @@ void DataNet::_openWebSocket() {
     // NOTE: certificate verification is disabled for simplicity on ESP.
     // For production, use setSSLClientCertKey() / beginSslWithCA().
     if (_wsPort == 443) {
-        _ws.beginSSL(_wsHost, _wsPort, "/ws", "", protocol.c_str());
+        _ws.beginSSL(_wsHost, _wsPort, "/ws", nullptr, protocol.c_str());
     } else {
         _ws.begin(_wsHost, _wsPort, "/ws", protocol.c_str());
     }
