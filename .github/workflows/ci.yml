@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  compile-examples:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - platform: esp32
+            fqbn: esp32:esp32:esp32
+            core: esp32:esp32
+          - platform: esp8266
+            fqbn: esp8266:esp8266:nodemcuv2
+            core: esp8266:esp8266
+          - platform: teensy
+            fqbn: teensy:avr:teensy41
+            core: teensy:avr
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - run: arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - run: arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+      - run: arduino-cli config add board_manager.additional_urls https://www.pjrc.com/teensy/package_teensy_index.json
+      - run: arduino-cli core update-index
+      - run: arduino-cli core install ${{ matrix.core }}
+      - run: arduino-cli lib install ArduinoJson
+      - run: arduino-cli lib install WebSockets
+      - run: arduino-cli lib install Ethernet
+      - if: matrix.platform != 'teensy'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/BasicPubSub
+      - if: matrix.platform != 'teensy'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/TemperatureSensor
+      - if: matrix.platform != 'teensy'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/BinaryDMX
+      - if: matrix.platform != 'teensy'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/BinaryDMXOutputBridge
+      - if: matrix.platform == 'teensy'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/TeensyEthernetPubSub
+      - if: matrix.platform == 'esp32'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} --board-options PartitionScheme=huge_app examples/BLEScanner
+      - if: matrix.platform == 'esp32'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} --board-options PartitionScheme=huge_app examples/BLETrackedScanner

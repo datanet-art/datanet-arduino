@@ -1,0 +1,59 @@
+{
+  "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
+  "name": "DataNet",
+  "version": "0.1.0",
+  "description": "DataNet realtime pub/sub SDK for Arduino, ESP32, ESP8266, and Teensy with JSON and binary DMX/Art-Net transport.",
+  "keywords": [
+    "datanet",
+    "websocket",
+    "pubsub",
+    "iot",
+    "dmx",
+    "artnet",
+    "lighting"
+  ],
+  "homepage": "https://datanet.art",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/datanet-art/datanet-arduino.git"
+  },
+  "authors": [
+    {
+      "name": "DataNet",
+      "email": "hello@datanet.art",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "frameworks": "arduino",
+  "platforms": [
+    "espressif32",
+    "espressif8266",
+    "teensy",
+    "renesas-ra",
+    "atmelsam"
+  ],
+  "headers": "DataNet.h",
+  "dependencies": [
+    {
+      "name": "bblanchon/ArduinoJson",
+      "version": "^7.0.0"
+    },
+    {
+      "name": "links2004/WebSockets",
+      "version": "^2.4.0"
+    },
+    {
+      "name": "arduino-libraries/Ethernet",
+      "version": "^2.0.2"
+    }
+  ],
+  "examples": [
+    "examples/BasicPubSub/BasicPubSub.ino",
+    "examples/TemperatureSensor/TemperatureSensor.ino",
+    "examples/ArduinoWiFiPubSub/ArduinoWiFiPubSub.ino",
+    "examples/TeensyEthernetPubSub/TeensyEthernetPubSub.ino",
+    "examples/BinaryDMX/BinaryDMX.ino",
+    "examples/BinaryDMXOutputBridge/BinaryDMXOutputBridge.ino"
+  ]
+}

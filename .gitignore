@@ -1,0 +1,21 @@
+.DS_Store
+*.log
+*.tmp
+
+# Local credentials and machine-specific settings
+.env
+.env*
+!.env.example
+
+# Arduino build output
+build/
+*.tar.gz
+*.bin
+*.elf
+*.hex
+*.map
+*.uf2
+
+# Editor folders
+.idea/
+.vscode/

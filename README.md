@@ -1,6 +1,6 @@
 # DataNet Arduino SDK
 
-Realtime pub/sub for ESP32 and ESP8266 devices. Connect to the [DataNet](https://datanet.art) platform, subscribe to channels, and publish JSON or binary DMX/Art-Net messages — with automatic JWT authentication, heartbeating, and exponential-backoff reconnection.
+Realtime pub/sub for Arduino-compatible devices including ESP32, ESP8266, and Teensy. Connect to the [DataNet](https://datanet.art) platform, subscribe to channels, and publish JSON or binary DMX/Art-Net messages — with automatic JWT authentication, heartbeating, and exponential-backoff reconnection.
 
 ---
 
@@ -28,10 +28,17 @@ Install these via **Library Manager** before using DataNet:
 | Library | Author | Version |
 |---|---|---|
 | ArduinoJson | Benoit Blanchon | 7.x |
-| WebSockets | Markus Sattler (Links2004) | 2.4.x |
+| WebSockets | Markus Sattler (Links2004) | 2.4.x, ESP32/ESP8266 |
+| Ethernet | Arduino | 2.x, Teensy/Arduino Ethernet |
 
 `HTTPClient` is bundled with the ESP32 and ESP8266 Arduino board packages, so
 no separate install is needed there.
+
+ESP32 and ESP8266 use HTTPS/WSS by default. Teensy and Ethernet-style Arduino
+boards use the SDK's built-in plain HTTP/WS transport, so point them at a local
+DataNet gateway or development endpoint unless you add a TLS-capable transport.
+Arduino WiFi boards use their board package WiFi library, such as `WiFiS3` on
+Uno R4 WiFi or `WiFiNINA` on MKR WiFi 1010 / Nano 33 IoT.
 
 ### PlatformIO
 
@@ -100,7 +107,7 @@ Override `apiUrl`, `wsHost`, and `wsPort` to point at a staging or local server.
 
 | Method | Returns | Description |
 |---|---|---|
-| `connect()` | `bool` | Fetch JWT via HTTPS, open WSS connection. Returns `true` on success. WiFi must already be connected. |
+| `connect()` | `bool` | Fetch JWT and open the WebSocket connection. ESP boards use HTTPS/WSS by default; Teensy/Ethernet uses HTTP/WS. Network must already be connected. |
 | `loop()` | `void` | **Must be called every `loop()` iteration.** Drives WebSocket events and heartbeat. |
 | `connected()` | `bool` | `true` if the WebSocket is currently open. |
 | `subscribe(channel, handler)` | `void` | Subscribe to a channel. `handler` is called on each incoming message. Max `DATANET_MAX_SUBS` (default 8) channels. |
@@ -237,6 +244,22 @@ optionally mirror DMX RGB channels to WS2815/WS2812-style LEDs with FastLED.
 FastLED is optional and disabled by default so the library still compiles
 without extra dependencies.
 
+### ArduinoWiFiPubSub
+
+`File → Examples → DataNet → ArduinoWiFiPubSub`
+
+Minimal WiFi subscribe + publish loop for Arduino Uno R4 WiFi, MKR WiFi 1010,
+and Nano 33 IoT. This example uses a plain `http://` API URL and `ws://`
+WebSocket port for local gateways/development servers.
+
+### TeensyEthernetPubSub
+
+`File → Examples → DataNet → TeensyEthernetPubSub`
+
+Minimal Ethernet subscribe + publish loop for Teensy 4.1 or Arduino-compatible
+Ethernet boards. This example uses a plain `http://` API URL and `ws://`
+WebSocket port for local gateways/development servers.
+
 ---
 
 ## Protocol Notes
@@ -263,6 +286,7 @@ The SDK communicates using the DataNet WebSocket protocol:
 - Call `WiFi.setOutputPower(10)` to reduce WiFi TX power if signal strength allows — this cuts current draw significantly on battery-powered nodes.
 - The TLS/SSL handshake requires ~30 KB of heap momentarily. Ensure your sketch does not allocate large buffers before calling `connect()`.
 - BLE examples on ESP32 often need a large app partition because WiFi + TLS + WebSockets + BLE is flash-heavy. On 4 MB boards, use `Huge APP (3MB No OTA/1MB SPIFFS)`. On ESP32-S3 boards, choose a board profile and partition layout that exposes at least a 3 MB app slot.
+- Classic Arduino Uno-class AVR boards are generally too small for the full SDK. Teensy 4.1 compiles cleanly with the Ethernet transport and is the recommended non-ESP Arduino-family target.
 
 ### SSL certificate verification
 
