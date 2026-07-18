@@ -110,6 +110,7 @@ Override `apiUrl`, `wsHost`, and `wsPort` to point at a staging or local server.
 | `connect()` | `bool` | Fetch JWT and open the WebSocket connection. ESP boards use HTTPS/WSS by default; Teensy/Ethernet uses HTTP/WS. Network must already be connected. |
 | `loop()` | `void` | **Must be called every `loop()` iteration.** Drives WebSocket events and heartbeat. |
 | `connected()` | `bool` | `true` if the WebSocket is currently open. |
+| `getPresence(channel)` | `int` | Blocking HTTP lookup of authoritative occupancy. Returns `-1` on error; call selectively or on a throttled timer. |
 | `subscribe(channel, handler)` | `void` | Subscribe to a channel. `handler` is called on each incoming message. Max `DATANET_MAX_SUBS` (default 8) channels. |
 | `unsubscribe(channel)` | `void` | Remove a channel subscription and send an `unsub` envelope. |
 | `subscribeBinary(channel, handler, contentType)` | `void` | Subscribe to binary envelopes on a channel. Handler receives bytes plus metadata. |
@@ -260,6 +261,14 @@ Minimal Ethernet subscribe + publish loop for Teensy 4.1 or Arduino-compatible
 Ethernet boards. This example uses a plain `http://` API URL and `ws://`
 WebSocket port for local gateways/development servers.
 
+### PresenceReactiveLighting
+
+`File → Examples → DataNet → PresenceReactiveLighting`
+
+ESP32 example that checks occupancy every 10 seconds and turns the built-in
+LED into a repeating presence-count pulse pattern. It demonstrates that
+`getPresence()` is a deliberate blocking lookup and must not run every frame.
+
 ---
 
 ## Protocol Notes
@@ -271,6 +280,7 @@ The SDK communicates using the DataNet WebSocket protocol:
 - **Envelope format:** `{"op":"pub|sub|unsub|hb", "ch":"channel-name", "d":{...}}`
 - **Binary envelope:** `{"op":"pub","ch":"channel-name","bin":true,"b64":"...","ct":"binary/dmx","meta":{...}}`
 - **Heartbeat:** `{"op":"hb"}` sent every 30 seconds (configurable)
+- **Presence:** authenticated `GET /presence?channel=...`; call occasionally, not in every `loop()` tick
 
 ---
 

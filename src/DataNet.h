@@ -150,6 +150,11 @@ public:
     // Returns true if the WebSocket is currently connected.
     bool connected();
 
+    // Query authoritative server presence for a channel.
+    // This is a blocking HTTP request: call selectively or on a throttled
+    // timer, never on every loop() iteration. Returns -1 on error.
+    int getPresence(const char* channel);
+
     // -----------------------------------------------------------------------
     // Pub / Sub
     // -----------------------------------------------------------------------
@@ -371,6 +376,8 @@ private:
     static size_t _base64Decode(const char* input, uint8_t* out, size_t outSize);
     static int8_t _base64Value(char c);
     bool _fetchJwtPlainHttp();
+    int _getPresencePlainHttp(const char* channel);
+    static String _urlEncode(const char* value);
     static bool _parseHttpUrl(
         const char* url,
         char* host,

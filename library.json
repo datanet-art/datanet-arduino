@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
   "name": "DataNet",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DataNet realtime pub/sub SDK for Arduino, ESP32, ESP8266, and Teensy with JSON and binary DMX/Art-Net transport.",
   "keywords": [
     "datanet",
@@ -54,6 +54,7 @@
     "examples/ArduinoWiFiPubSub/ArduinoWiFiPubSub.ino",
     "examples/TeensyEthernetPubSub/TeensyEthernetPubSub.ino",
     "examples/BinaryDMX/BinaryDMX.ino",
-    "examples/BinaryDMXOutputBridge/BinaryDMXOutputBridge.ino"
+    "examples/BinaryDMXOutputBridge/BinaryDMXOutputBridge.ino",
+    "examples/PresenceReactiveLighting/PresenceReactiveLighting.ino"
   ]
 }

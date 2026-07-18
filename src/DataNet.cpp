@@ -99,6 +99,66 @@ bool DataNet::connect() {
 }
 
 // ---------------------------------------------------------------------------
+// getPresence() — blocking HTTP occupancy lookup
+// ---------------------------------------------------------------------------
+int DataNet::getPresence(const char* channel) {
+    if (channel == nullptr || channel[0] == '\0') {
+        _dispatchEvent(EventType::Error, "Missing presence channel");
+        return -1;
+    }
+    if (_jwt[0] == '\0') {
+        _dispatchEvent(EventType::Error, "Connect before presence");
+        return -1;
+    }
+
+#if defined(ESP32) || defined(ESP8266)
+    String url = String(_apiUrl) + F("/presence?channel=") + _urlEncode(channel);
+    String body;
+
+  #ifdef ESP32
+    WiFiClientSecure secureClient;
+    secureClient.setInsecure();
+    HTTPClient http;
+    http.begin(secureClient, url);
+  #else
+    BearSSL::WiFiClientSecure secureClient;
+    secureClient.setInsecure();
+    HTTPClient http;
+    http.begin(secureClient, url);
+  #endif
+
+    http.addHeader(F("Authorization"), String(F("Bearer ")) + _jwt);
+    int httpCode = http.GET();
+    if (httpCode != 200) {
+        Serial.printf("[DataNet] Presence failed, HTTP %d\n", httpCode);
+        char info[32];
+        snprintf(info, sizeof(info), "Presence HTTP %d", httpCode);
+        _dispatchEvent(EventType::Error, info);
+        http.end();
+        return -1;
+    }
+    body = http.getString();
+    http.end();
+
+    StaticJsonDocument<512> doc;
+    DeserializationError err = deserializeJson(doc, body);
+    if (err) {
+        _dispatchEvent(EventType::Error, "Presence parse failed");
+        return -1;
+    }
+    int occupancy = doc[F("occupancy")].is<int>()
+        ? doc[F("occupancy")].as<int>()
+        : (doc[F("count")] | -1);
+    if (occupancy < 0) {
+        _dispatchEvent(EventType::Error, "Presence count missing");
+    }
+    return occupancy;
+#else
+    return _getPresencePlainHttp(channel);
+#endif
+}
+
+// ---------------------------------------------------------------------------
 // loop()
 // ---------------------------------------------------------------------------
 void DataNet::loop() {
@@ -634,6 +694,84 @@ bool DataNet::_fetchJwtPlainHttp() {
     Serial.println(static_cast<unsigned>(strlen(_jwt)));
     Serial.println(F("[DataNet] JWT obtained"));
     return true;
+}
+
+int DataNet::_getPresencePlainHttp(const char* channel) {
+    char host[96];
+    char path[256];
+    uint16_t port = 80;
+    bool secure = false;
+    String url = String(_apiUrl) + F("/presence?channel=") + _urlEncode(channel);
+    if (!_parseHttpUrl(url.c_str(), host, sizeof(host), &port, path, sizeof(path), &secure)) {
+        _dispatchEvent(EventType::Error, "Presence URL parse failed");
+        return -1;
+    }
+    if (secure) {
+        _dispatchEvent(EventType::Error, "HTTPS presence unavailable");
+        return -1;
+    }
+
+#if DATANET_USE_LINKS2004_WEBSOCKETS
+    WEBSOCKETS_NETWORK_CLASS client;
+#elif DATANET_USE_GENERIC_WIFI
+    WiFiClient client;
+#else
+    EthernetClient client;
+#endif
+    if (!client.connect(host, port)) {
+        _dispatchEvent(EventType::Error, "Presence connection failed");
+        return -1;
+    }
+
+    client.print(F("GET "));
+    client.print(path);
+    client.println(F(" HTTP/1.1"));
+    client.print(F("Host: "));
+    client.println(host);
+    client.print(F("Authorization: Bearer "));
+    client.println(_jwt);
+    client.println(F("Accept: application/json"));
+    client.println(F("Connection: close"));
+    client.println();
+
+    String body;
+    if (!_readHttpBody(client, body)) {
+        client.stop();
+        _dispatchEvent(EventType::Error, "Presence response failed");
+        return -1;
+    }
+    client.stop();
+
+    StaticJsonDocument<512> doc;
+    DeserializationError err = deserializeJson(doc, body);
+    if (err) {
+        _dispatchEvent(EventType::Error, "Presence parse failed");
+        return -1;
+    }
+    int occupancy = doc[F("occupancy")].is<int>()
+        ? doc[F("occupancy")].as<int>()
+        : (doc[F("count")] | -1);
+    if (occupancy < 0) {
+        _dispatchEvent(EventType::Error, "Presence count missing");
+    }
+    return occupancy;
+}
+
+String DataNet::_urlEncode(const char* value) {
+    String encoded;
+    const char hex[] = "0123456789ABCDEF";
+    while (*value != '\0') {
+        uint8_t c = static_cast<uint8_t>(*value++);
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+            (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~') {
+            encoded += static_cast<char>(c);
+        } else {
+            encoded += '%';
+            encoded += hex[(c >> 4) & 0x0F];
+            encoded += hex[c & 0x0F];
+        }
+    }
+    return encoded;
 }
 
 // ---------------------------------------------------------------------------
