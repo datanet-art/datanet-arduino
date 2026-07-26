@@ -3,8 +3,8 @@
  *
  * Outputs sensor readings as newline-delimited JSON over USB serial.
  * Works on any Arduino board — Uno, Mega, Nano, Leonardo, etc.
- * NO WiFi required. A separate bridge script (Node.js, Python, or browser
- * Web Serial API) reads this output and publishes it to DataNet.
+ * NO WiFi required. A separate Node.js or Python bridge script reads this
+ * output and publishes it to DataNet.
  *
  * Output format — one JSON object per line at 115200 baud:
  *   {"sensor":"temperature","value":22.4,"unit":"C","n":1}
@@ -15,10 +15,11 @@
  *   Replace the stub functions at the bottom with real sensor libraries
  *   (DHT22, BME280, DS18B20, etc.) for production use.
  *
- * Bridge scripts (see demos/arduino-serial-bridge/):
- *   bridge-node/bridge.mjs          Node.js bridge
- *   bridge-python/bridge.py         Python bridge
- *   bridge-browser/index.html       p5.js + Web Serial API (Chrome/Edge)
+ * Bridge setup and run instructions:
+ *   https://github.com/datanet-art/datanet-examples/tree/main/arduino/serial-bridge
+ *
+ * Choose either the Node.js bridge or the Python bridge. Both forward this
+ * sketch's JSON lines to the hosted DataNet service.
  */
 
 // ── Configuration ─────────────────────────────────────────────────────────

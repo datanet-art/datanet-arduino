@@ -234,6 +234,10 @@ Example:
 
 ## Examples
 
+Choose the basic example that matches your board. ESP32 and ESP8266 use
+different Arduino Wi-Fi libraries and board cores, so they are kept as two
+separate sketches even though they demonstrate the same DataNet pub/sub flow.
+
 ### ESP32BasicPubSub
 
 `File → Examples → DataNet → ESP32BasicPubSub`
@@ -251,7 +255,22 @@ Minimal hosted-cloud subscribe + publish loop for ESP8266 boards.
 
 `File → Examples → DataNet → TemperatureSensor`
 
-Simulated temperature/humidity sensor that publishes every 5 seconds and subscribes to a commands channel. Demonstrates event handlers, multi-field payloads, and proper `setup()`/`loop()` patterns.
+Networked ESP32/ESP8266 example that simulates temperature and humidity,
+publishes every 5 seconds, and subscribes to a commands channel. Unlike
+`SerialSensor`, this sketch connects to DataNet directly over Wi-Fi.
+
+### SerialSensor
+
+`File → Examples → DataNet → SerialSensor`
+
+Board-side sketch for an Uno, Mega, classic Nano, or other board without its
+own network connection. It emits simulated sensor readings as newline-delimited
+JSON over USB serial; a Node.js or Python bridge running on the computer then
+publishes those readings to DataNet. The sketch itself does not use the DataNet
+network client.
+
+See the [complete serial bridge guide](https://github.com/datanet-art/datanet-examples/tree/main/arduino/serial-bridge)
+for installation, port selection, and run instructions.
 
 ### ESP32Button
 
