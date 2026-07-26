@@ -55,6 +55,8 @@
   "examples": [
     "examples/ESP32BasicPubSub/ESP32BasicPubSub.ino",
     "examples/ESP8266BasicPubSub/ESP8266BasicPubSub.ino",
+    "examples/ESP32Button/ESP32Button.ino",
+    "examples/ESP32Potentiometer/ESP32Potentiometer.ino",
     "examples/TemperatureSensor/TemperatureSensor.ino",
     "examples/ArduinoWiFiPubSub/ArduinoWiFiPubSub.ino",
     "examples/Nano33IoTCloudPubSub/Nano33IoTCloudPubSub.ino",

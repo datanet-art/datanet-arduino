@@ -243,17 +243,19 @@ Minimal hosted-cloud subscribe + publish loop for ESP8266 boards.
 
 Simulated temperature/humidity sensor that publishes every 5 seconds and subscribes to a commands channel. Demonstrates event handlers, multi-field payloads, and proper `setup()`/`loop()` patterns.
 
-### BLEScanner
+### ESP32Button
 
-`File → Examples → DataNet → BLEScanner`
+`File → Examples → DataNet → ESP32Button`
 
-Compact BLE scan summary publisher for ESP32 boards. This example is the quickest way to verify BLE scan data is reaching a DataNet channel.
+Connect a momentary button between GPIO 4 and GND. The example debounces the
+input and publishes `pressed` plus a running `press_count` whenever it changes.
 
-### BLETrackedScanner
+### ESP32Potentiometer
 
-`File → Examples → DataNet → BLETrackedScanner`
+`File → Examples → DataNet → ESP32Potentiometer`
 
-More production-shaped BLE scanner that tracks nearby devices over time and publishes larger batched payloads. Use an ESP32 board profile with a 3 MB app partition or larger.
+Connect a potentiometer between 3.3V and GND with its wiper on GPIO 34. The
+example publishes the raw 12-bit reading and a normalized `0.0`–`1.0` value.
 
 ### BinaryDMX
 
@@ -331,7 +333,6 @@ The SDK communicates using the DataNet WebSocket protocol:
 - A 512-byte DMX frame becomes about 684 base64 characters before JSON envelope overhead. The default binary scratch buffer is sized for full DMX and ArtDMX payloads.
 - Call `WiFi.setOutputPower(10)` to reduce WiFi TX power if signal strength allows — this cuts current draw significantly on battery-powered nodes.
 - The TLS/SSL handshake requires ~30 KB of heap momentarily. Ensure your sketch does not allocate large buffers before calling `connect()`.
-- BLE examples on ESP32 often need a large app partition because WiFi + TLS + WebSockets + BLE is flash-heavy. On 4 MB boards, use `Huge APP (3MB No OTA/1MB SPIFFS)`. On ESP32-S3 boards, choose a board profile and partition layout that exposes at least a 3 MB app slot.
 - Classic Arduino Uno-class AVR boards are generally too small for the full SDK. Teensy 4.1 compiles cleanly with the Ethernet transport and is the recommended non-ESP Arduino-family target.
 
 ### SSL certificate verification

@@ -51,6 +51,6 @@ jobs:
       - if: matrix.platform == 'teensy'
         run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/TeensyEthernetPubSub
       - if: matrix.platform == 'esp32'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} --board-options PartitionScheme=huge_app examples/BLEScanner
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP32Button
       - if: matrix.platform == 'esp32'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} --board-options PartitionScheme=huge_app examples/BLETrackedScanner
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP32Potentiometer
