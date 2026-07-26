@@ -99,6 +99,9 @@ void loop() {
 
   if (datanet.connected() && millis() - lastPublishMs >= 5000UL) {
     lastPublishMs = millis();
-    datanet.publishFloat(CHANNEL, "uptime_ms", millis());
+    StaticJsonDocument<96> data;
+    data[F("source")] = F("nano33iot");
+    data[F("uptime_ms")] = millis();
+    datanet.publish(CHANNEL, data.as<JsonVariant>());
   }
 }

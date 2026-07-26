@@ -229,7 +229,8 @@ Example:
 
 `File → Examples → DataNet → ESP32BasicPubSub`
 
-Minimal hosted-cloud subscribe + publish loop for ESP32 boards.
+Minimal hosted-cloud subscribe + publish loop for ESP32 boards. Messages carry
+`source: "esp32"` so two-board tests are easy to read in Serial Monitor.
 
 ### ESP8266BasicPubSub
 
@@ -290,6 +291,7 @@ WebSocket port for local gateways/development servers.
 Hosted-cloud publish/subscribe for Nano 33 IoT using WiFiNINA HTTPS and WSS.
 Before uploading, use the Arduino IDE Firmware Updater to install SSL root
 certificates for `api.datanet.art` and `ws.datanet.art` on the NINA module.
+Messages carry `source: "nano33iot"` for clear cross-device testing.
 
 ### TeensyEthernetPubSub
 
