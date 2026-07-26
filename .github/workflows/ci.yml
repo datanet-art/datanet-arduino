@@ -36,8 +36,10 @@ jobs:
       - run: arduino-cli lib install Ethernet
       - if: matrix.platform == 'nano33iot'
         run: arduino-cli lib install WiFiNINA
-      - if: matrix.platform != 'teensy'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/BasicPubSub
+      - if: matrix.platform == 'esp32'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP32BasicPubSub
+      - if: matrix.platform == 'esp8266'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP8266BasicPubSub
       - if: matrix.platform == 'esp32' || matrix.platform == 'esp8266'
         run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/TemperatureSensor
       - if: matrix.platform == 'esp32' || matrix.platform == 'esp8266'

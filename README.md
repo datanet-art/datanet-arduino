@@ -225,11 +225,17 @@ Example:
 
 ## Examples
 
-### BasicPubSub
+### ESP32BasicPubSub
 
-`File → Examples → DataNet → BasicPubSub`
+`File → Examples → DataNet → ESP32BasicPubSub`
 
-Minimal subscribe + publish loop. Good starting point.
+Minimal hosted-cloud subscribe + publish loop for ESP32 boards.
+
+### ESP8266BasicPubSub
+
+`File → Examples → DataNet → ESP8266BasicPubSub`
+
+Minimal hosted-cloud subscribe + publish loop for ESP8266 boards.
 
 ### TemperatureSensor
 
@@ -367,7 +373,7 @@ For a quick local compile check with `arduino-cli`, point the compiler at the
 repo as a library:
 
 ```bash
-arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/BasicPubSub
+arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/ESP32BasicPubSub
 arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/TemperatureSensor
 arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/BinaryDMX
 arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/BinaryDMXOutputBridge
