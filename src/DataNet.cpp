@@ -621,11 +621,13 @@ bool DataNet::_fetchJwtPlainHttp() {
         return false;
     }
 
+#if !DATANET_USE_GENERIC_WIFI_TLS
     if (secure) {
         Serial.println(F("[DataNet] HTTPS auth is unavailable on this board transport; use http:// or an ESP board"));
         _dispatchEvent(EventType::Error, "HTTPS auth unavailable");
         return false;
     }
+#endif
 
     StaticJsonDocument<128> reqDoc;
     reqDoc[F("apiKey")] = _apiKey;
@@ -638,39 +640,54 @@ bool DataNet::_fetchJwtPlainHttp() {
     }
 
 #if DATANET_USE_LINKS2004_WEBSOCKETS
-    WEBSOCKETS_NETWORK_CLASS client;
+    WEBSOCKETS_NETWORK_CLASS plainClient;
+    Client* client = &plainClient;
 #elif DATANET_USE_GENERIC_WIFI
-    WiFiClient client;
+    WiFiClient plainClient;
+  #if DATANET_USE_GENERIC_WIFI_TLS
+    WiFiSSLClient secureClient;
+    Client* client = secure
+        ? static_cast<Client*>(&secureClient)
+        : static_cast<Client*>(&plainClient);
+  #else
+    if (secure) {
+        Serial.println(F("[DataNet] HTTPS auth is unavailable on this board transport; use http:// or an ESP board"));
+        _dispatchEvent(EventType::Error, "HTTPS auth unavailable");
+        return false;
+    }
+    Client* client = &plainClient;
+  #endif
 #else
-    EthernetClient client;
+    EthernetClient plainClient;
+    Client* client = &plainClient;
 #endif
-    if (!client.connect(host, port)) {
+    if (!client->connect(host, port)) {
         Serial.println(F("[DataNet] Auth connection failed"));
         _dispatchEvent(EventType::Error, "Auth connection failed");
         return false;
     }
 
-    client.print(F("POST "));
-    client.print(path);
-    client.println(F(" HTTP/1.1"));
-    client.print(F("Host: "));
-    client.println(host);
-    client.println(F("User-Agent: DataNet-Arduino/0.1.0"));
-    client.println(F("Content-Type: application/json"));
-    client.print(F("Content-Length: "));
-    client.println(reqLength);
-    client.println(F("Connection: close"));
-    client.println();
-    client.write(reinterpret_cast<const uint8_t*>(reqBody), reqLength);
+    client->print(F("POST "));
+    client->print(path);
+    client->println(F(" HTTP/1.1"));
+    client->print(F("Host: "));
+    client->println(host);
+    client->println(F("User-Agent: DataNet-Arduino/0.1.0"));
+    client->println(F("Content-Type: application/json"));
+    client->print(F("Content-Length: "));
+    client->println(reqLength);
+    client->println(F("Connection: close"));
+    client->println();
+    client->write(reinterpret_cast<const uint8_t*>(reqBody), reqLength);
 
     String body;
-    if (!_readHttpBody(client, body)) {
+    if (!_readHttpBody(*client, body)) {
         Serial.println(F("[DataNet] Auth response read failed"));
         _dispatchEvent(EventType::Error, "Auth response read failed");
-        client.stop();
+        client->stop();
         return false;
     }
-    client.stop();
+    client->stop();
 
     StaticJsonDocument<2048> respDoc;
     DeserializationError err = deserializeJson(respDoc, body);
@@ -706,41 +723,57 @@ int DataNet::_getPresencePlainHttp(const char* channel) {
         _dispatchEvent(EventType::Error, "Presence URL parse failed");
         return -1;
     }
+#if !DATANET_USE_GENERIC_WIFI_TLS
     if (secure) {
         _dispatchEvent(EventType::Error, "HTTPS presence unavailable");
         return -1;
     }
+#endif
 
 #if DATANET_USE_LINKS2004_WEBSOCKETS
-    WEBSOCKETS_NETWORK_CLASS client;
+    WEBSOCKETS_NETWORK_CLASS plainClient;
+    Client* client = &plainClient;
 #elif DATANET_USE_GENERIC_WIFI
-    WiFiClient client;
+    WiFiClient plainClient;
+  #if DATANET_USE_GENERIC_WIFI_TLS
+    WiFiSSLClient secureClient;
+    Client* client = secure
+        ? static_cast<Client*>(&secureClient)
+        : static_cast<Client*>(&plainClient);
+  #else
+    if (secure) {
+        _dispatchEvent(EventType::Error, "HTTPS presence unavailable");
+        return -1;
+    }
+    Client* client = &plainClient;
+  #endif
 #else
-    EthernetClient client;
+    EthernetClient plainClient;
+    Client* client = &plainClient;
 #endif
-    if (!client.connect(host, port)) {
+    if (!client->connect(host, port)) {
         _dispatchEvent(EventType::Error, "Presence connection failed");
         return -1;
     }
 
-    client.print(F("GET "));
-    client.print(path);
-    client.println(F(" HTTP/1.1"));
-    client.print(F("Host: "));
-    client.println(host);
-    client.print(F("Authorization: Bearer "));
-    client.println(_jwt);
-    client.println(F("Accept: application/json"));
-    client.println(F("Connection: close"));
-    client.println();
+    client->print(F("GET "));
+    client->print(path);
+    client->println(F(" HTTP/1.1"));
+    client->print(F("Host: "));
+    client->println(host);
+    client->print(F("Authorization: Bearer "));
+    client->println(_jwt);
+    client->println(F("Accept: application/json"));
+    client->println(F("Connection: close"));
+    client->println();
 
     String body;
-    if (!_readHttpBody(client, body)) {
-        client.stop();
+    if (!_readHttpBody(*client, body)) {
+        client->stop();
         _dispatchEvent(EventType::Error, "Presence response failed");
         return -1;
     }
-    client.stop();
+    client->stop();
 
     StaticJsonDocument<512> doc;
     DeserializationError err = deserializeJson(doc, body);
@@ -1103,7 +1136,7 @@ void DataNet::_networkLoop() {
 }
 
 void DataNet::_networkDisconnect() {
-    _tcp.stop();
+    _webSocketClient().stop();
 }
 
 bool DataNet::_networkSendText(const char* text) {
@@ -1116,13 +1149,16 @@ bool DataNet::_networkSendText(const String& text) {
 }
 
 bool DataNet::_openPlainWebSocket(const char* protocol) {
+#if !DATANET_USE_GENERIC_WIFI_TLS
     if (_wsPort == 443) {
         Serial.println(F("[DataNet] TLS is unavailable on this board transport; use ws:// or a local gateway"));
         _dispatchEvent(EventType::Error, "TLS transport unavailable");
         return false;
     }
+#endif
 
-    if (!_tcp.connect(_wsHost, _wsPort)) {
+    Client& tcp = _webSocketClient();
+    if (!tcp.connect(_wsHost, _wsPort)) {
         Serial.println(F("[DataNet] WebSocket TCP connection failed"));
         _dispatchEvent(EventType::Error, "WebSocket TCP failed");
         _scheduleReconnect();
@@ -1135,23 +1171,23 @@ bool DataNet::_openPlainWebSocket(const char* protocol) {
     }
     String key = _base64Encode(nonce, sizeof(nonce));
 
-    _tcp.println(F("GET /ws HTTP/1.1"));
-    _tcp.print(F("Host: "));
-    _tcp.println(_wsHost);
-    _tcp.println(F("Upgrade: websocket"));
-    _tcp.println(F("Connection: Upgrade"));
-    _tcp.println(F("Sec-WebSocket-Version: 13"));
-    _tcp.print(F("Sec-WebSocket-Key: "));
-    _tcp.println(key);
-    _tcp.print(F("Sec-WebSocket-Protocol: "));
-    _tcp.println(protocol);
-    _tcp.println();
+    tcp.println(F("GET /ws HTTP/1.1"));
+    tcp.print(F("Host: "));
+    tcp.println(_wsHost);
+    tcp.println(F("Upgrade: websocket"));
+    tcp.println(F("Connection: Upgrade"));
+    tcp.println(F("Sec-WebSocket-Version: 13"));
+    tcp.print(F("Sec-WebSocket-Key: "));
+    tcp.println(key);
+    tcp.print(F("Sec-WebSocket-Protocol: "));
+    tcp.println(protocol);
+    tcp.println();
 
     uint32_t start = millis();
     String statusLine;
-    while (_tcp.connected() && millis() - start < 5000) {
-        if (_tcp.available()) {
-            statusLine = _tcp.readStringUntil('\n');
+    while (tcp.connected() && millis() - start < 5000) {
+        if (tcp.available()) {
+            statusLine = tcp.readStringUntil('\n');
             statusLine.trim();
             break;
         }
@@ -1162,17 +1198,17 @@ bool DataNet::_openPlainWebSocket(const char* protocol) {
         Serial.print(F("[DataNet] WebSocket handshake failed: "));
         Serial.println(statusLine);
         _dispatchEvent(EventType::Error, "WebSocket handshake failed");
-        _tcp.stop();
+        tcp.stop();
         _scheduleReconnect();
         return false;
     }
 
-    while (_tcp.connected() && millis() - start < 5000) {
-        if (!_tcp.available()) {
+    while (tcp.connected() && millis() - start < 5000) {
+        if (!tcp.available()) {
             delay(1);
             continue;
         }
-        String header = _tcp.readStringUntil('\n');
+        String header = tcp.readStringUntil('\n');
         header.trim();
         if (header.length() == 0) {
             break;
@@ -1189,8 +1225,18 @@ bool DataNet::_openPlainWebSocket(const char* protocol) {
     return true;
 }
 
+Client& DataNet::_webSocketClient() {
+#if DATANET_USE_GENERIC_WIFI_TLS
+    if (_wsPort == 443) {
+        return _tlsTcp;
+    }
+#endif
+    return _tcp;
+}
+
 void DataNet::_handlePlainWebSocket() {
-    if (!_tcp.connected()) {
+    Client& tcp = _webSocketClient();
+    if (!tcp.connected()) {
         if (_wsConnected) {
             _wsConnected = false;
             Serial.println(F("[DataNet] WebSocket disconnected"));
@@ -1200,7 +1246,7 @@ void DataNet::_handlePlainWebSocket() {
         return;
     }
 
-    while (_tcp.available() >= 2) {
+    while (tcp.available() >= 2) {
         uint8_t header[2];
         if (!_readPlainBytes(header, sizeof(header), 100)) return;
 
@@ -1229,7 +1275,7 @@ void DataNet::_handlePlainWebSocket() {
         if (payloadLength > DATANET_INCOMING_JSON_SIZE) {
             Serial.println(F("[DataNet] WebSocket frame too large"));
             _dispatchEvent(EventType::Error, "WebSocket frame too large");
-            _tcp.stop();
+            tcp.stop();
             _wsConnected = false;
             _scheduleReconnect();
             return;
@@ -1247,7 +1293,7 @@ void DataNet::_handlePlainWebSocket() {
         if (opcode == 0x01) {
             _handleMessage(reinterpret_cast<const char*>(payload), static_cast<size_t>(payloadLength));
         } else if (opcode == 0x08) {
-            _tcp.stop();
+            tcp.stop();
             _wsConnected = false;
             _dispatchEvent(EventType::Disconnect, "closed");
             _scheduleReconnect();
@@ -1259,7 +1305,8 @@ void DataNet::_handlePlainWebSocket() {
 }
 
 bool DataNet::_sendPlainFrame(uint8_t opcode, const uint8_t* payload, size_t length) {
-    if (!_wsConnected || !_tcp.connected()) {
+    Client& tcp = _webSocketClient();
+    if (!_wsConnected || !tcp.connected()) {
         return false;
     }
     if (payload == nullptr && length > 0) {
@@ -1287,13 +1334,13 @@ bool DataNet::_sendPlainFrame(uint8_t opcode, const uint8_t* payload, size_t len
         header[headerLength++] = mask[i];
     }
 
-    if (_tcp.write(header, headerLength) != headerLength) {
+    if (tcp.write(header, headerLength) != headerLength) {
         return false;
     }
 
     for (size_t i = 0; i < length; i++) {
         uint8_t b = payload[i] ^ mask[i % 4];
-        if (_tcp.write(&b, 1) != 1) {
+        if (tcp.write(&b, 1) != 1) {
             return false;
         }
     }
@@ -1301,11 +1348,12 @@ bool DataNet::_sendPlainFrame(uint8_t opcode, const uint8_t* payload, size_t len
 }
 
 bool DataNet::_readPlainBytes(uint8_t* out, size_t length, uint32_t timeoutMs) {
+    Client& tcp = _webSocketClient();
     uint32_t start = millis();
     size_t offset = 0;
     while (offset < length && millis() - start < timeoutMs) {
-        if (_tcp.available()) {
-            int value = _tcp.read();
+        if (tcp.available()) {
+            int value = tcp.read();
             if (value < 0) {
                 return false;
             }

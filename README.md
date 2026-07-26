@@ -30,15 +30,17 @@ Install these via **Library Manager** before using DataNet:
 | ArduinoJson | Benoit Blanchon | 7.x |
 | WebSockets | Markus Sattler (Links2004) | 2.4.x, ESP32/ESP8266 |
 | Ethernet | Arduino | 2.x, Teensy/Arduino Ethernet |
+| WiFiNINA | Arduino | 2.x, Nano 33 IoT/MKR WiFi 1010 |
 
 `HTTPClient` is bundled with the ESP32 and ESP8266 Arduino board packages, so
 no separate install is needed there.
 
-ESP32 and ESP8266 use HTTPS/WSS by default. Teensy and Ethernet-style Arduino
-boards use the SDK's built-in plain HTTP/WS transport, so point them at a local
-DataNet gateway or development endpoint unless you add a TLS-capable transport.
-Arduino WiFi boards use their board package WiFi library, such as `WiFiS3` on
-Uno R4 WiFi or `WiFiNINA` on MKR WiFi 1010 / Nano 33 IoT.
+ESP32, ESP8266, Nano 33 IoT, and MKR WiFi 1010 use HTTPS/WSS with the hosted
+DataNet service. WiFiNINA boards must have current NINA firmware and SSL root
+certificates for `api.datanet.art` and `ws.datanet.art` installed through the
+Arduino IDE Firmware Updater. Teensy, Ethernet-style Arduino boards, and the
+current Uno R4 WiFi transport use plain HTTP/WS and therefore require a
+TLS-capable bridge before connecting to the hosted service.
 
 ### PlatformIO
 
@@ -101,13 +103,33 @@ DataNet datanet(
 
 Override `apiUrl`, `wsHost`, and `wsPort` to point at a staging or local server.
 
+### Hosted API and WebSocket format
+
+Use these exact values for the hosted DataNet service:
+
+```cpp
+const char* API_URL = "https://api.datanet.art";
+const char* WS_HOST = "ws.datanet.art";
+const int WS_PORT = 443;
+
+DataNet datanet(API_KEY, API_URL, WS_HOST, WS_PORT);
+```
+
+`apiUrl` is an HTTP origin and therefore includes `https://`. The SDK appends
+REST paths such as `/auth/token` and `/presence`.
+
+`wsHost` is a DNS hostname only. Do not include `wss://`, `https://`, a port,
+or `/ws`; the SDK supplies the WebSocket path and uses `wsPort` to select the
+transport. Port `443` selects secure WSS on ESP and WiFiNINA boards. Ports such
+as `80` or `8080` are reserved for deliberately configured plain WS endpoints.
+
 ---
 
 ### Methods
 
 | Method | Returns | Description |
 |---|---|---|
-| `connect()` | `bool` | Fetch JWT and open the WebSocket connection. ESP boards use HTTPS/WSS by default; Teensy/Ethernet uses HTTP/WS. Network must already be connected. |
+| `connect()` | `bool` | Fetch JWT and open the WebSocket connection. ESP and WiFiNINA boards use HTTPS/WSS for the hosted service; Teensy/Ethernet currently uses HTTP/WS. Network must already be connected. |
 | `loop()` | `void` | **Must be called every `loop()` iteration.** Drives WebSocket events and heartbeat. |
 | `connected()` | `bool` | `true` if the WebSocket is currently open. |
 | `getPresence(channel)` | `int` | Blocking HTTP lookup of authoritative occupancy. Returns `-1` on error; call selectively or on a throttled timer. |
@@ -252,6 +274,14 @@ without extra dependencies.
 Minimal WiFi subscribe + publish loop for Arduino Uno R4 WiFi, MKR WiFi 1010,
 and Nano 33 IoT. This example uses a plain `http://` API URL and `ws://`
 WebSocket port for local gateways/development servers.
+
+### Nano33IoTCloudPubSub
+
+`File → Examples → DataNet → Nano33IoTCloudPubSub`
+
+Hosted-cloud publish/subscribe for Nano 33 IoT using WiFiNINA HTTPS and WSS.
+Before uploading, use the Arduino IDE Firmware Updater to install SSL root
+certificates for `api.datanet.art` and `ws.datanet.art` on the NINA module.
 
 ### TeensyEthernetPubSub
 

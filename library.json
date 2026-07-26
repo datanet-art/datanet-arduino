@@ -46,12 +46,17 @@
     {
       "name": "arduino-libraries/Ethernet",
       "version": "^2.0.2"
+    },
+    {
+      "name": "arduino-libraries/WiFiNINA",
+      "version": "^2.0.0"
     }
   ],
   "examples": [
     "examples/BasicPubSub/BasicPubSub.ino",
     "examples/TemperatureSensor/TemperatureSensor.ino",
     "examples/ArduinoWiFiPubSub/ArduinoWiFiPubSub.ino",
+    "examples/Nano33IoTCloudPubSub/Nano33IoTCloudPubSub.ino",
     "examples/TeensyEthernetPubSub/TeensyEthernetPubSub.ino",
     "examples/BinaryDMX/BinaryDMX.ino",
     "examples/BinaryDMXOutputBridge/BinaryDMXOutputBridge.ino",
