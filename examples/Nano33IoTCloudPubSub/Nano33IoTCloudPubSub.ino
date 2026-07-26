@@ -22,12 +22,8 @@ const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 const char* API_KEY = "ak_YOUR_API_KEY_HERE";
 const char* CHANNEL = "project.your-project-id.demo";
 
-// API_URL includes its scheme. WS_HOST is a hostname only: no wss:// or /ws.
-const char* API_URL = "https://api.datanet.art";
-const char* WS_HOST = "ws.datanet.art";
-const int WS_PORT = 443;
-
-DataNet datanet(API_KEY, API_URL, WS_HOST, WS_PORT);
+// The one-argument constructor uses the hosted DataNet HTTPS/WSS defaults.
+DataNet datanet(API_KEY);
 unsigned long lastPublishMs = 0;
 
 void onMessage(const char* channel, JsonVariant data) {

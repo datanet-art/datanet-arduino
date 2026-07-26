@@ -291,7 +291,9 @@ WebSocket port for local gateways/development servers.
 Hosted-cloud publish/subscribe for Nano 33 IoT using WiFiNINA HTTPS and WSS.
 Before uploading, use the Arduino IDE Firmware Updater to install SSL root
 certificates for `api.datanet.art` and `ws.datanet.art` on the NINA module.
-Messages carry `source: "nano33iot"` for clear cross-device testing.
+Like the ESP examples, it uses the one-argument constructor and the SDK's
+hosted-cloud defaults. Messages carry `source: "nano33iot"` for clear
+cross-device testing.
 
 ### TeensyEthernetPubSub
 
