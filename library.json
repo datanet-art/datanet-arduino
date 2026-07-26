@@ -58,7 +58,6 @@
     "examples/ESP32Button/ESP32Button.ino",
     "examples/ESP32Potentiometer/ESP32Potentiometer.ino",
     "examples/TemperatureSensor/TemperatureSensor.ino",
-    "examples/ArduinoWiFiPubSub/ArduinoWiFiPubSub.ino",
     "examples/Nano33IoTCloudPubSub/Nano33IoTCloudPubSub.ino",
     "examples/TeensyEthernetPubSub/TeensyEthernetPubSub.ino",
     "examples/BinaryDMX/BinaryDMX.ino",

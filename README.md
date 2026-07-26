@@ -92,6 +92,20 @@ void loop() {
 
 ### Constructor
 
+For the hosted DataNet service, applications only provide their API key:
+
+```cpp
+DataNet datanet(API_KEY);
+```
+
+The SDK owns the hosted API URL, WebSocket hostname, path, and secure port.
+Most applications should not declare or copy those values.
+
+#### Custom endpoint override (advanced)
+
+The full constructor is available for DataNet maintainers, staging, testing,
+or explicitly configured self-hosted environments:
+
 ```cpp
 DataNet datanet(
     const char* apiKey,
@@ -101,11 +115,7 @@ DataNet datanet(
 );
 ```
 
-Override `apiUrl`, `wsHost`, and `wsPort` to point at a staging or local server.
-
-### Hosted API and WebSocket format
-
-Use these exact values for the hosted DataNet service:
+When overriding the defaults, use this format:
 
 ```cpp
 const char* API_URL = "https://api.datanet.art";
@@ -120,8 +130,7 @@ REST paths such as `/auth/token` and `/presence`.
 
 `wsHost` is a DNS hostname only. Do not include `wss://`, `https://`, a port,
 or `/ws`; the SDK supplies the WebSocket path and uses `wsPort` to select the
-transport. Port `443` selects secure WSS on ESP and WiFiNINA boards. Ports such
-as `80` or `8080` are reserved for deliberately configured plain WS endpoints.
+transport. Port `443` selects secure WSS on ESP and WiFiNINA boards.
 
 ---
 
@@ -275,14 +284,6 @@ DataNet, forwards frames to an Art-Net node/controller over UDP, and can
 optionally mirror DMX RGB channels to WS2815/WS2812-style LEDs with FastLED.
 FastLED is optional and disabled by default so the library still compiles
 without extra dependencies.
-
-### ArduinoWiFiPubSub
-
-`File → Examples → DataNet → ArduinoWiFiPubSub`
-
-Minimal WiFi subscribe + publish loop for Arduino Uno R4 WiFi, MKR WiFi 1010,
-and Nano 33 IoT. This example uses a plain `http://` API URL and `ws://`
-WebSocket port for local gateways/development servers.
 
 ### Nano33IoTCloudPubSub
 
