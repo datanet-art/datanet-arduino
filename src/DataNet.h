@@ -11,8 +11,8 @@
  *
  * Platform support: ESP32, ESP8266, Teensy/Ethernet, Arduino Ethernet, and
  * Arduino WiFi boards such as Uno R4 WiFi, MKR WiFi 1010, and Nano 33 IoT.
- * Non-ESP boards use plain HTTP/WS endpoints unless a future transport adds
- * TLS support.
+ * ESP boards and WiFiNINA boards support the hosted HTTPS/WSS service.
+ * Ethernet and other generic transports use plain HTTP/WS endpoints.
  */
 
 #include <Arduino.h>
@@ -22,20 +22,25 @@
 #if defined(ESP32) || defined(ESP8266)
   #define DATANET_USE_LINKS2004_WEBSOCKETS 1
   #define DATANET_USE_GENERIC_WIFI 0
+  #define DATANET_USE_GENERIC_WIFI_TLS 0
   #define DATANET_USE_GENERIC_ETHERNET 0
   #include <WebSocketsClient.h>
 #else
   #define DATANET_USE_LINKS2004_WEBSOCKETS 0
   #if defined(ARDUINO_UNOWIFIR4)
     #define DATANET_USE_GENERIC_WIFI 1
+    #define DATANET_USE_GENERIC_WIFI_TLS 0
     #define DATANET_USE_GENERIC_ETHERNET 0
     #include <WiFiS3.h>
   #elif defined(ARDUINO_SAMD_MKRWIFI1010) || defined(ARDUINO_SAMD_NANO_33_IOT)
     #define DATANET_USE_GENERIC_WIFI 1
+    #define DATANET_USE_GENERIC_WIFI_TLS 1
     #define DATANET_USE_GENERIC_ETHERNET 0
     #include <WiFiNINA.h>
+    #include <WiFiSSLClient.h>
   #else
     #define DATANET_USE_GENERIC_WIFI 0
+    #define DATANET_USE_GENERIC_WIFI_TLS 0
     #define DATANET_USE_GENERIC_ETHERNET 1
     #include <Ethernet.h>
   #endif
@@ -313,6 +318,9 @@ private:
     WebSocketsClient _ws;
 #elif DATANET_USE_GENERIC_WIFI
     WiFiClient _tcp;
+  #if DATANET_USE_GENERIC_WIFI_TLS
+    WiFiSSLClient _tlsTcp;
+  #endif
 #else
     EthernetClient _tcp;
 #endif
@@ -343,6 +351,7 @@ private:
     bool _networkSendText(const String& text);
 #if !DATANET_USE_LINKS2004_WEBSOCKETS
     bool _openPlainWebSocket(const char* protocol);
+    Client& _webSocketClient();
     void _handlePlainWebSocket();
     bool _sendPlainFrame(uint8_t opcode, const uint8_t* payload, size_t length);
     bool _readPlainBytes(uint8_t* out, size_t length, uint32_t timeoutMs = 1000);

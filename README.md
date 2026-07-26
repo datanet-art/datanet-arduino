@@ -30,15 +30,17 @@ Install these via **Library Manager** before using DataNet:
 | ArduinoJson | Benoit Blanchon | 7.x |
 | WebSockets | Markus Sattler (Links2004) | 2.4.x, ESP32/ESP8266 |
 | Ethernet | Arduino | 2.x, Teensy/Arduino Ethernet |
+| WiFiNINA | Arduino | 2.x, Nano 33 IoT/MKR WiFi 1010 |
 
 `HTTPClient` is bundled with the ESP32 and ESP8266 Arduino board packages, so
 no separate install is needed there.
 
-ESP32 and ESP8266 use HTTPS/WSS by default. Teensy and Ethernet-style Arduino
-boards use the SDK's built-in plain HTTP/WS transport, so point them at a local
-DataNet gateway or development endpoint unless you add a TLS-capable transport.
-Arduino WiFi boards use their board package WiFi library, such as `WiFiS3` on
-Uno R4 WiFi or `WiFiNINA` on MKR WiFi 1010 / Nano 33 IoT.
+ESP32, ESP8266, Nano 33 IoT, and MKR WiFi 1010 use HTTPS/WSS with the hosted
+DataNet service. WiFiNINA boards must have current NINA firmware and SSL root
+certificates for `api.datanet.art` and `ws.datanet.art` installed through the
+Arduino IDE Firmware Updater. Teensy, Ethernet-style Arduino boards, and the
+current Uno R4 WiFi transport use plain HTTP/WS and therefore require a
+TLS-capable bridge before connecting to the hosted service.
 
 ### PlatformIO
 
@@ -90,6 +92,20 @@ void loop() {
 
 ### Constructor
 
+For the hosted DataNet service, applications only provide their API key:
+
+```cpp
+DataNet datanet(API_KEY);
+```
+
+The SDK owns the hosted API URL, WebSocket hostname, path, and secure port.
+Most applications should not declare or copy those values.
+
+#### Custom endpoint override (advanced)
+
+The full constructor is available for DataNet maintainers, staging, testing,
+or explicitly configured self-hosted environments:
+
 ```cpp
 DataNet datanet(
     const char* apiKey,
@@ -99,7 +115,22 @@ DataNet datanet(
 );
 ```
 
-Override `apiUrl`, `wsHost`, and `wsPort` to point at a staging or local server.
+When overriding the defaults, use this format:
+
+```cpp
+const char* API_URL = "https://api.datanet.art";
+const char* WS_HOST = "ws.datanet.art";
+const int WS_PORT = 443;
+
+DataNet datanet(API_KEY, API_URL, WS_HOST, WS_PORT);
+```
+
+`apiUrl` is an HTTP origin and therefore includes `https://`. The SDK appends
+REST paths such as `/auth/token` and `/presence`.
+
+`wsHost` is a DNS hostname only. Do not include `wss://`, `https://`, a port,
+or `/ws`; the SDK supplies the WebSocket path and uses `wsPort` to select the
+transport. Port `443` selects secure WSS on ESP and WiFiNINA boards.
 
 ---
 
@@ -107,7 +138,7 @@ Override `apiUrl`, `wsHost`, and `wsPort` to point at a staging or local server.
 
 | Method | Returns | Description |
 |---|---|---|
-| `connect()` | `bool` | Fetch JWT and open the WebSocket connection. ESP boards use HTTPS/WSS by default; Teensy/Ethernet uses HTTP/WS. Network must already be connected. |
+| `connect()` | `bool` | Fetch JWT and open the WebSocket connection. ESP and WiFiNINA boards use HTTPS/WSS for the hosted service; Teensy/Ethernet currently uses HTTP/WS. Network must already be connected. |
 | `loop()` | `void` | **Must be called every `loop()` iteration.** Drives WebSocket events and heartbeat. |
 | `connected()` | `bool` | `true` if the WebSocket is currently open. |
 | `getPresence(channel)` | `int` | Blocking HTTP lookup of authoritative occupancy. Returns `-1` on error; call selectively or on a throttled timer. |
@@ -203,29 +234,57 @@ Example:
 
 ## Examples
 
-### BasicPubSub
+Choose the basic example that matches your board. ESP32 and ESP8266 use
+different Arduino Wi-Fi libraries and board cores, so they are kept as two
+separate sketches even though they demonstrate the same DataNet pub/sub flow.
 
-`File → Examples → DataNet → BasicPubSub`
+### ESP32BasicPubSub
 
-Minimal subscribe + publish loop. Good starting point.
+`File → Examples → DataNet → ESP32BasicPubSub`
+
+Minimal hosted-cloud subscribe + publish loop for ESP32 boards. Messages carry
+`source: "esp32"` so two-board tests are easy to read in Serial Monitor.
+
+### ESP8266BasicPubSub
+
+`File → Examples → DataNet → ESP8266BasicPubSub`
+
+Minimal hosted-cloud subscribe + publish loop for ESP8266 boards.
 
 ### TemperatureSensor
 
 `File → Examples → DataNet → TemperatureSensor`
 
-Simulated temperature/humidity sensor that publishes every 5 seconds and subscribes to a commands channel. Demonstrates event handlers, multi-field payloads, and proper `setup()`/`loop()` patterns.
+Networked ESP32/ESP8266 example that simulates temperature and humidity,
+publishes every 5 seconds, and subscribes to a commands channel. Unlike
+`SerialSensor`, this sketch connects to DataNet directly over Wi-Fi.
 
-### BLEScanner
+### SerialSensor
 
-`File → Examples → DataNet → BLEScanner`
+`File → Examples → DataNet → SerialSensor`
 
-Compact BLE scan summary publisher for ESP32 boards. This example is the quickest way to verify BLE scan data is reaching a DataNet channel.
+Board-side sketch for an Uno, Mega, classic Nano, or other board without its
+own network connection. It emits simulated sensor readings as newline-delimited
+JSON over USB serial; a Node.js or Python bridge running on the computer then
+publishes those readings to DataNet. The sketch itself does not use the DataNet
+network client.
 
-### BLETrackedScanner
+See the [complete serial bridge guide](https://github.com/datanet-art/datanet-examples/tree/main/arduino/serial-bridge)
+for installation, port selection, and run instructions.
 
-`File → Examples → DataNet → BLETrackedScanner`
+### ESP32Button
 
-More production-shaped BLE scanner that tracks nearby devices over time and publishes larger batched payloads. Use an ESP32 board profile with a 3 MB app partition or larger.
+`File → Examples → DataNet → ESP32Button`
+
+Connect a momentary button between GPIO 4 and GND. The example debounces the
+input and publishes `pressed` plus a running `press_count` whenever it changes.
+
+### ESP32Potentiometer
+
+`File → Examples → DataNet → ESP32Potentiometer`
+
+Connect a potentiometer between 3.3V and GND with its wiper on GPIO 34. The
+example publishes the raw 12-bit reading and a normalized `0.0`–`1.0` value.
 
 ### BinaryDMX
 
@@ -245,13 +304,16 @@ optionally mirror DMX RGB channels to WS2815/WS2812-style LEDs with FastLED.
 FastLED is optional and disabled by default so the library still compiles
 without extra dependencies.
 
-### ArduinoWiFiPubSub
+### Nano33IoTCloudPubSub
 
-`File → Examples → DataNet → ArduinoWiFiPubSub`
+`File → Examples → DataNet → Nano33IoTCloudPubSub`
 
-Minimal WiFi subscribe + publish loop for Arduino Uno R4 WiFi, MKR WiFi 1010,
-and Nano 33 IoT. This example uses a plain `http://` API URL and `ws://`
-WebSocket port for local gateways/development servers.
+Hosted-cloud publish/subscribe for Nano 33 IoT using WiFiNINA HTTPS and WSS.
+Before uploading, use the Arduino IDE Firmware Updater to install SSL root
+certificates for `api.datanet.art` and `ws.datanet.art` on the NINA module.
+Like the ESP examples, it uses the one-argument constructor and the SDK's
+hosted-cloud defaults. Messages carry `source: "nano33iot"` for clear
+cross-device testing.
 
 ### TeensyEthernetPubSub
 
@@ -295,7 +357,6 @@ The SDK communicates using the DataNet WebSocket protocol:
 - A 512-byte DMX frame becomes about 684 base64 characters before JSON envelope overhead. The default binary scratch buffer is sized for full DMX and ArtDMX payloads.
 - Call `WiFi.setOutputPower(10)` to reduce WiFi TX power if signal strength allows — this cuts current draw significantly on battery-powered nodes.
 - The TLS/SSL handshake requires ~30 KB of heap momentarily. Ensure your sketch does not allocate large buffers before calling `connect()`.
-- BLE examples on ESP32 often need a large app partition because WiFi + TLS + WebSockets + BLE is flash-heavy. On 4 MB boards, use `Huge APP (3MB No OTA/1MB SPIFFS)`. On ESP32-S3 boards, choose a board profile and partition layout that exposes at least a 3 MB app slot.
 - Classic Arduino Uno-class AVR boards are generally too small for the full SDK. Teensy 4.1 compiles cleanly with the Ethernet transport and is the recommended non-ESP Arduino-family target.
 
 ### SSL certificate verification
@@ -337,7 +398,7 @@ For a quick local compile check with `arduino-cli`, point the compiler at the
 repo as a library:
 
 ```bash
-arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/BasicPubSub
+arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/ESP32BasicPubSub
 arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/TemperatureSensor
 arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/BinaryDMX
 arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/BinaryDMXOutputBridge

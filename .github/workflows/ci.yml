@@ -17,11 +17,14 @@ jobs:
           - platform: esp8266
             fqbn: esp8266:esp8266:nodemcuv2
             core: esp8266:esp8266
+          - platform: nano33iot
+            fqbn: arduino:samd:nano_33_iot
+            core: arduino:samd
           - platform: teensy
             fqbn: teensy:avr:teensy41
             core: teensy:avr
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: arduino/setup-arduino-cli@v2
       - run: arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
       - run: arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
@@ -31,17 +34,23 @@ jobs:
       - run: arduino-cli lib install ArduinoJson
       - run: arduino-cli lib install WebSockets
       - run: arduino-cli lib install Ethernet
-      - if: matrix.platform != 'teensy'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/BasicPubSub
-      - if: matrix.platform != 'teensy'
+      - if: matrix.platform == 'nano33iot'
+        run: arduino-cli lib install WiFiNINA
+      - if: matrix.platform == 'esp32'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP32BasicPubSub
+      - if: matrix.platform == 'esp8266'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP8266BasicPubSub
+      - if: matrix.platform == 'esp32' || matrix.platform == 'esp8266'
         run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/TemperatureSensor
-      - if: matrix.platform != 'teensy'
+      - if: matrix.platform == 'esp32' || matrix.platform == 'esp8266'
         run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/BinaryDMX
-      - if: matrix.platform != 'teensy'
+      - if: matrix.platform == 'esp32' || matrix.platform == 'esp8266'
         run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/BinaryDMXOutputBridge
+      - if: matrix.platform == 'nano33iot'
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/Nano33IoTCloudPubSub
       - if: matrix.platform == 'teensy'
         run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/TeensyEthernetPubSub
       - if: matrix.platform == 'esp32'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} --board-options PartitionScheme=huge_app examples/BLEScanner
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP32Button
       - if: matrix.platform == 'esp32'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} --board-options PartitionScheme=huge_app examples/BLETrackedScanner
+        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP32Potentiometer
