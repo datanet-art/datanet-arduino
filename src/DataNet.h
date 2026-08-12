@@ -264,6 +264,13 @@ public:
     void on(const char* event, EventHandler handler);
 
 private:
+#ifdef DATANET_ENABLE_TEST_ACCESS
+    // Defined only by the native test build (test/native). Lets the host test
+    // suite exercise internal encoders and parsers without widening the
+    // public API that sketches compile against.
+    friend struct DataNetTestAccess;
+#endif
+
     // -----------------------------------------------------------------------
     // Internal types
     // -----------------------------------------------------------------------

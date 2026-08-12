@@ -19,3 +19,7 @@ build/
 # Editor folders
 .idea/
 .vscode/
+
+# Native test build artifacts
+test/native/build/
+test/native/third_party/
