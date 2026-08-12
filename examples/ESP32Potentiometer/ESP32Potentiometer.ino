@@ -79,7 +79,7 @@ void loop() {
     return;
   }
 
-  StaticJsonDocument<96> data;
+  JsonDocument data;
   data[F("raw")] = raw;
   data[F("normalized")] = static_cast<float>(raw) / static_cast<float>(ADC_MAX);
 

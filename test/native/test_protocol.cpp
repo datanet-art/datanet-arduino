@@ -264,3 +264,51 @@ TEST(protocol_subscription_table_is_bounded) {
     DataNetTestAccess::handleMessage(sdk.dn, "{\"op\":\"pub\",\"ch\":\"ch.0\",\"d\":1}");
     CHECK_EQ(g_a.calls, 1);
 }
+
+TEST(protocol_delivers_a_raw_binary_frame_to_the_single_binary_subscriber) {
+    // Raw frames carry no channel, so they are only routable when exactly one
+    // binary subscription exists.
+    Sdk sdk;
+    sdk.dn.subscribeBinary("stage.dmx", binaryHandler, "binary/dmx");
+    DataNetTestAccess::setConnected(sdk.dn, true);
+    datanetTestWire().connected = true;
+
+    const uint8_t bytes[] = {1, 2, 3, 4};
+    DataNetTestAccess::dispatchRawBinary(sdk.dn, bytes, sizeof(bytes));
+
+    CHECK_EQ(g_bin.calls, 1);
+    CHECK_STR_EQ(g_bin.channel, "stage.dmx");
+    CHECK_STR_EQ(g_bin.contentType, "binary/dmx");
+    CHECK_EQ(g_bin.raw, true);
+    CHECK_EQ(g_bin.declaredBytes, static_cast<size_t>(4));
+}
+
+TEST(protocol_drops_ambiguous_raw_binary_frames) {
+    Sdk sdk;
+    sdk.dn.subscribeBinary("stage.a", binaryHandler, "binary/dmx");
+    sdk.dn.subscribeBinary("stage.b", binaryHandler, "binary/dmx");
+
+    datanetTestClearSerial();
+    const uint8_t bytes[] = {1, 2, 3, 4};
+    DataNetTestAccess::dispatchRawBinary(sdk.dn, bytes, sizeof(bytes));
+
+    CHECK_EQ(g_bin.calls, 0);
+    CHECK(datanetTestSerialLog().find("multiple binary subscriptions") != std::string::npos);
+}
+
+TEST(protocol_rejects_frames_larger_than_the_configured_json_size) {
+    // ArduinoJson 7 documents are elastic, so the cap has to be enforced by
+    // the SDK rather than by the document type.
+    Sdk sdk;
+    sdk.dn.subscribe("room.temp", handlerA);
+
+    std::string filler(DATANET_INCOMING_JSON_SIZE, 'a');
+    std::string envelope =
+        "{\"op\":\"pub\",\"ch\":\"room.temp\",\"d\":{\"v\":\"" + filler + "\"}}";
+
+    datanetTestClearSerial();
+    DataNetTestAccess::handleMessage(sdk.dn, envelope.c_str());
+
+    CHECK_EQ(g_a.calls, 0);
+    CHECK(datanetTestSerialLog().find("DATANET_INCOMING_JSON_SIZE") != std::string::npos);
+}

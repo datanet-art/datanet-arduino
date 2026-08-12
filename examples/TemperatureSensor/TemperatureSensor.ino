@@ -116,7 +116,7 @@ void publishTelemetry() {
     float hum  = readHumidity();
 
     // Build the data object manually for a multi-field payload
-    StaticJsonDocument<128> dataDoc;
+    JsonDocument dataDoc;
     dataDoc[F("temperature")] = temp;
     dataDoc[F("humidity")]    = hum;
     dataDoc[F("unit")]        = F("celsius");

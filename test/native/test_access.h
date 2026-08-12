@@ -59,4 +59,8 @@ struct DataNetTestAccess {
     }
 
     static void handlePlainWebSocket(DataNet& dn) { dn._handlePlainWebSocket(); }
+
+    static void dispatchRawBinary(DataNet& dn, const uint8_t* payload, size_t length) {
+        dn._dispatchRawBinary(payload, length);
+    }
 };

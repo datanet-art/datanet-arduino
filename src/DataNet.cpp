@@ -7,20 +7,6 @@
 #include "DataNet.h"
 
 // ---------------------------------------------------------------------------
-// PROGMEM string constants (avoids placing literals in RAM on 8-bit targets;
-// on ESP32/ESP8266 these end up in flash/IRAM regardless, but it is good
-// practice and keeps the pattern consistent with Arduino conventions).
-// ---------------------------------------------------------------------------
-static const char DN_OP_SUB[]   PROGMEM = "sub";
-static const char DN_OP_UNSUB[] PROGMEM = "unsub";
-static const char DN_OP_PUB[]   PROGMEM = "pub";
-static const char DN_OP_HB[]    PROGMEM = "hb";
-
-static const char DN_EV_CONNECT[]    PROGMEM = "connect";
-static const char DN_EV_DISCONNECT[] PROGMEM = "disconnect";
-static const char DN_EV_ERROR[]      PROGMEM = "error";
-
-// ---------------------------------------------------------------------------
 // Static instance pointer — supports a single DataNet object per sketch
 // (typical embedded usage pattern).
 // ---------------------------------------------------------------------------
@@ -94,8 +80,7 @@ bool DataNet::connect() {
         return false;
     }
 
-    _openWebSocket();
-    return true;
+    return _openWebSocket();
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +125,7 @@ int DataNet::getPresence(const char* channel) {
     body = http.getString();
     http.end();
 
-    StaticJsonDocument<512> doc;
+    JsonDocument doc;
     DeserializationError err = deserializeJson(doc, body);
     if (err) {
         _dispatchEvent(EventType::Error, "Presence parse failed");
@@ -176,7 +161,7 @@ void DataNet::loop() {
     if (_wsConnected && (now - _lastHeartbeatMs >= DATANET_HEARTBEAT_INTERVAL_MS)) {
         _lastHeartbeatMs = now;
         // Send bare {op:"hb"} — no channel, no data
-        StaticJsonDocument<64> doc;
+        JsonDocument doc;
         doc[F("op")] = F("hb");
         char buf[64];
         serializeJson(doc, buf, sizeof(buf));
@@ -184,8 +169,11 @@ void DataNet::loop() {
         Serial.println(F("[DataNet] Heartbeat sent"));
     }
 
-    // Reconnect
-    if (_reconnectPending && !_wsConnected && (now >= _reconnectAtMs)) {
+    // Reconnect. The deadline is compared with a signed difference so it stays
+    // correct across the ~49.7 day millis() rollover; a bare >= would fire
+    // immediately for one tick each time the counter wraps.
+    if (_reconnectPending && !_wsConnected &&
+        (static_cast<int32_t>(now - _reconnectAtMs) >= 0)) {
         _reconnectPending = false;
         Serial.println(F("[DataNet] Attempting reconnect..."));
 
@@ -219,6 +207,28 @@ bool DataNet::connected() {
 }
 
 // ---------------------------------------------------------------------------
+// _channelFits()
+//
+// Subscriptions store the channel name in a fixed buffer, but dispatch matches
+// the full inbound name with strcmp. Silently truncating on the way in would
+// create a subscription that can never fire, with no signal to the sketch, so
+// an over-long name is refused loudly instead.
+// ---------------------------------------------------------------------------
+bool DataNet::_channelFits(const char* channel) {
+    if (channel == nullptr || channel[0] == '\0') {
+        Serial.println(F("[DataNet] subscribe: empty channel name"));
+        return false;
+    }
+    if (strlen(channel) >= DATANET_MAX_CHANNEL_LEN) {
+        Serial.print(F("[DataNet] subscribe: channel name too long (max "));
+        Serial.print(static_cast<unsigned>(DATANET_MAX_CHANNEL_LEN - 1));
+        Serial.println(F(" chars)"));
+        return false;
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------------------
 // subscribe()
 // ---------------------------------------------------------------------------
 void DataNet::subscribe(const char* channel, MessageHandler handler) {
@@ -229,7 +239,7 @@ void DataNet::subscribe(const char* channel, MessageHandler handler) {
             _subs[i].handler = handler;
             // If already connected, send a fresh sub
             if (_wsConnected) {
-                StaticJsonDocument<128> doc;
+                JsonDocument doc;
                 doc[F("op")] = F("sub");
                 doc[F("ch")] = channel;
                 char buf[128];
@@ -238,6 +248,10 @@ void DataNet::subscribe(const char* channel, MessageHandler handler) {
             }
             return;
         }
+    }
+
+    if (!_channelFits(channel)) {
+        return;
     }
 
     // Find a free slot
@@ -250,7 +264,7 @@ void DataNet::subscribe(const char* channel, MessageHandler handler) {
 
             // If connected, send sub immediately
             if (_wsConnected) {
-                StaticJsonDocument<128> doc;
+                JsonDocument doc;
                 doc[F("op")] = F("sub");
                 doc[F("ch")] = channel;
                 char buf[128];
@@ -279,7 +293,7 @@ void DataNet::unsubscribe(const char* channel) {
             }
 
             if (_wsConnected && !_subs[i].active) {
-                StaticJsonDocument<128> doc;
+                JsonDocument doc;
                 doc[F("op")] = F("unsub");
                 doc[F("ch")] = channel;
                 char buf[128];
@@ -303,7 +317,7 @@ void DataNet::subscribeBinary(const char* channel, BinaryMessageHandler handler,
                 _subs[i].binaryContentType[sizeof(_subs[i].binaryContentType) - 1] = '\0';
             }
             if (_wsConnected) {
-                StaticJsonDocument<128> doc;
+                JsonDocument doc;
                 doc[F("op")] = F("sub");
                 doc[F("ch")] = channel;
                 char buf[128];
@@ -312,6 +326,10 @@ void DataNet::subscribeBinary(const char* channel, BinaryMessageHandler handler,
             }
             return;
         }
+    }
+
+    if (!_channelFits(channel)) {
+        return;
     }
 
     for (int i = 0; i < DATANET_MAX_SUBS; i++) {
@@ -330,7 +348,7 @@ void DataNet::subscribeBinary(const char* channel, BinaryMessageHandler handler,
             }
 
             if (_wsConnected) {
-                StaticJsonDocument<128> doc;
+                JsonDocument doc;
                 doc[F("op")] = F("sub");
                 doc[F("ch")] = channel;
                 char buf[128];
@@ -359,7 +377,7 @@ void DataNet::unsubscribeBinary(const char* channel) {
             }
 
             if (_wsConnected && !_subs[i].active) {
-                StaticJsonDocument<128> doc;
+                JsonDocument doc;
                 doc[F("op")] = F("unsub");
                 doc[F("ch")] = channel;
                 char buf[128];
@@ -381,17 +399,25 @@ bool DataNet::publish(const char* channel, JsonVariant data) {
     }
 
     // Build envelope: {op:"pub", ch:"...", d:<data>}
-    // Use a moderately sized document; callers with large payloads should
-    // use DynamicJsonDocument on the heap instead of this convenience method.
-    StaticJsonDocument<512> doc;
+    // The envelope is serialised into a fixed stack buffer, so payloads larger
+    // than it are refused rather than truncated. Callers needing more should
+    // serialise their own envelope and send it directly.
+    JsonDocument doc;
     doc[F("op")] = F("pub");
     doc[F("ch")] = channel;
     doc[F("d")]  = data;
 
-    char buf[512];
+    char   buf[512];
+    size_t needed = measureJson(doc);
+    if (needed == 0 || needed >= sizeof(buf)) {
+        Serial.println(F("[DataNet] publish: payload too large for the envelope buffer"));
+        _dispatchEvent(EventType::Error, "Publish payload too large");
+        return false;
+    }
+
     size_t len = serializeJson(doc, buf, sizeof(buf));
-    if (len == 0 || len >= sizeof(buf)) {
-        Serial.println(F("[DataNet] publish: serialization failed or payload too large"));
+    if (len != needed) {
+        Serial.println(F("[DataNet] publish: serialization failed"));
         return false;
     }
 
@@ -402,7 +428,7 @@ bool DataNet::publish(const char* channel, JsonVariant data) {
 // publishFloat()
 // ---------------------------------------------------------------------------
 bool DataNet::publishFloat(const char* channel, const char* key, float value) {
-    StaticJsonDocument<128> dataDoc;
+    JsonDocument dataDoc;
     dataDoc[key] = value;
     return publish(channel, dataDoc.as<JsonVariant>());
 }
@@ -411,7 +437,7 @@ bool DataNet::publishFloat(const char* channel, const char* key, float value) {
 // publishString()
 // ---------------------------------------------------------------------------
 bool DataNet::publishString(const char* channel, const char* key, const char* value) {
-    StaticJsonDocument<128> dataDoc;
+    JsonDocument dataDoc;
     dataDoc[key] = value;
     return publish(channel, dataDoc.as<JsonVariant>());
 }
@@ -523,7 +549,7 @@ bool DataNet::_fetchJwt() {
     String url = String(_apiUrl) + F("/auth/token");
 
     // Build request body
-    StaticJsonDocument<128> reqDoc;
+    JsonDocument reqDoc;
     reqDoc[F("apiKey")] = _apiKey;
     char reqBody[128];
     serializeJson(reqDoc, reqBody, sizeof(reqBody));
@@ -581,7 +607,7 @@ bool DataNet::_fetchJwt() {
 #endif
 
     // Parse {"token":"<jwt>"}
-    StaticJsonDocument<2048> respDoc;
+    JsonDocument respDoc;
     DeserializationError err = deserializeJson(respDoc, body);
     if (err) {
         Serial.print(F("[DataNet] Auth response parse error: "));
@@ -629,7 +655,7 @@ bool DataNet::_fetchJwtPlainHttp() {
     }
 #endif
 
-    StaticJsonDocument<128> reqDoc;
+    JsonDocument reqDoc;
     reqDoc[F("apiKey")] = _apiKey;
     char reqBody[128];
     size_t reqLength = serializeJson(reqDoc, reqBody, sizeof(reqBody));
@@ -689,7 +715,7 @@ bool DataNet::_fetchJwtPlainHttp() {
     }
     client->stop();
 
-    StaticJsonDocument<2048> respDoc;
+    JsonDocument respDoc;
     DeserializationError err = deserializeJson(respDoc, body);
     if (err) {
         Serial.print(F("[DataNet] Auth response parse error: "));
@@ -775,7 +801,7 @@ int DataNet::_getPresencePlainHttp(const char* channel) {
     }
     client->stop();
 
-    StaticJsonDocument<512> doc;
+    JsonDocument doc;
     DeserializationError err = deserializeJson(doc, body);
     if (err) {
         _dispatchEvent(EventType::Error, "Presence parse failed");
@@ -898,7 +924,9 @@ bool DataNet::_readHttpBody(Client& client, String& body, uint32_t timeoutMs) {
     }
 
     if (!statusLine.startsWith(F("HTTP/1.1 200")) && !statusLine.startsWith(F("HTTP/1.0 200"))) {
-        Serial.print(F("[DataNet] Auth failed: "));
+        // Shared by /auth/token and /presence, so the message must not name
+        // either endpoint.
+        Serial.print(F("[DataNet] HTTP request failed: "));
         Serial.println(statusLine);
         return false;
     }
@@ -983,7 +1011,7 @@ bool DataNet::_readHttpBody(Client& client, String& body, uint32_t timeoutMs) {
 // ---------------------------------------------------------------------------
 // _openWebSocket()  — open WSS using the stored JWT as subprotocol header
 // ---------------------------------------------------------------------------
-void DataNet::_openWebSocket() {
+bool DataNet::_openWebSocket() {
     Serial.print(F("[DataNet] Opening WebSocket to "));
     Serial.println(_wsHost);
 
@@ -1010,12 +1038,12 @@ void DataNet::_openWebSocket() {
     if (_wsPort == 443) {
         Serial.println(F("[DataNet] This board transport does not provide TLS; use a ws:// endpoint or local gateway"));
         _dispatchEvent(EventType::Error, "TLS transport unavailable");
-        return;
+        return false;
     }
     _ws.begin(_wsHost, _wsPort, "/ws", protocol.c_str());
 #else
     if (!_openPlainWebSocket(protocol.c_str())) {
-        return;
+        return false;
     }
 #endif
 
@@ -1027,6 +1055,11 @@ void DataNet::_openWebSocket() {
     // disconnect event is observed.
     _ws.setReconnectInterval(DATANET_RECONNECT_BASE_MS);
 #endif
+
+    // On ESP the Links2004 client connects asynchronously, so success here
+    // means "attempt started"; the WStype_CONNECTED event confirms it. On the
+    // generic transport the handshake has already completed.
+    return true;
 }
 
 #if DATANET_USE_LINKS2004_WEBSOCKETS
@@ -1088,31 +1121,7 @@ void DataNet::_handleWsEvent(WStype_t type, uint8_t* payload, size_t length) {
             break;
 
         case WStype_BIN:
-            if (payload != nullptr && length > 0) {
-                int target = -1;
-                for (int i = 0; i < DATANET_MAX_SUBS; i++) {
-                    if (_subs[i].active && _subs[i].binaryHandler != nullptr) {
-                        if (target >= 0) {
-                            Serial.println(F("[DataNet] Raw binary frame ignored: multiple binary subscriptions"));
-                            _dispatchEvent(EventType::Error, "Raw binary frame is ambiguous");
-                            return;
-                        }
-                        target = i;
-                    }
-                }
-                if (target >= 0) {
-                    BinaryMessageMeta meta = {
-                        _subs[target].channel,
-                        "",
-                        (uint64_t)millis(),
-                        _subs[target].binaryContentType[0] != '\0' ? _subs[target].binaryContentType : "application/octet-stream",
-                        length,
-                        JsonVariant(),
-                        true
-                    };
-                    _subs[target].binaryHandler(payload, length, meta);
-                }
-            }
+            _dispatchRawBinary(payload, length);
             break;
 
         case WStype_ERROR:
@@ -1292,6 +1301,8 @@ void DataNet::_handlePlainWebSocket() {
 
         if (opcode == 0x01) {
             _handleMessage(reinterpret_cast<const char*>(payload), static_cast<size_t>(payloadLength));
+        } else if (opcode == 0x02) {
+            _dispatchRawBinary(payload, static_cast<size_t>(payloadLength));
         } else if (opcode == 0x08) {
             tcp.stop();
             _wsConnected = false;
@@ -1338,11 +1349,21 @@ bool DataNet::_sendPlainFrame(uint8_t opcode, const uint8_t* payload, size_t len
         return false;
     }
 
-    for (size_t i = 0; i < length; i++) {
-        uint8_t b = payload[i] ^ mask[i % 4];
-        if (tcp.write(&b, 1) != 1) {
+    // Mask and write in blocks. Writing a byte at a time costs one call into
+    // the network stack per byte, which a 700-byte DMX envelope at frame rate
+    // cannot sustain on the Ethernet and WiFiNINA transports.
+    uint8_t chunk[64];
+    size_t  offset = 0;
+    while (offset < length) {
+        size_t n = length - offset;
+        if (n > sizeof(chunk)) n = sizeof(chunk);
+        for (size_t i = 0; i < n; i++) {
+            chunk[i] = payload[offset + i] ^ mask[(offset + i) % 4];
+        }
+        if (tcp.write(chunk, n) != n) {
             return false;
         }
+        offset += n;
     }
     return true;
 }
@@ -1367,11 +1388,36 @@ bool DataNet::_readPlainBytes(uint8_t* out, size_t length, uint32_t timeoutMs) {
 #endif
 
 // ---------------------------------------------------------------------------
+// _readTimestamp()  — read the "ts" field as a Unix millisecond value
+//
+// DataNet timestamps are Unix milliseconds (~1.7e12), which has exceeded the
+// 32-bit range since 1970. ArduinoJson's JsonUInt is uint64_t on any board
+// with 32-bit pointers and unsigned long on 8-bit AVR, where asking for a
+// uint64_t directly is a hard compile error. Using JsonUInt keeps full
+// precision everywhere it is achievable and still builds on AVR.
+// ---------------------------------------------------------------------------
+uint64_t DataNet::_readTimestamp(JsonDocument& doc) {
+    JsonVariant ts = doc[F("ts")];
+    if (ts.is<JsonUInt>()) {
+        return static_cast<uint64_t>(ts.as<JsonUInt>());
+    }
+    return 0;
+}
+
+// ---------------------------------------------------------------------------
 // _handleMessage()  — parse incoming JSON envelope and dispatch
 // ---------------------------------------------------------------------------
 void DataNet::_handleMessage(const char* json, size_t length) {
-    // Use a reasonably sized static document; increase if large payloads expected.
-    StaticJsonDocument<DATANET_INCOMING_JSON_SIZE> doc;
+    // ArduinoJson 7 documents grow on the heap, so the size cap has to be
+    // applied here rather than by the document type. Without this, a large
+    // inbound frame allocates without limit on the ESP transports.
+    if (length > DATANET_INCOMING_JSON_SIZE) {
+        Serial.println(F("[DataNet] Incoming message exceeds DATANET_INCOMING_JSON_SIZE"));
+        _dispatchEvent(EventType::Error, "Incoming message too large");
+        return;
+    }
+
+    JsonDocument doc;
     DeserializationError err = deserializeJson(doc, json, length);
     if (err) {
         Serial.print(F("[DataNet] Message parse error: "));
@@ -1404,10 +1450,7 @@ void DataNet::_handleMessage(const char* json, size_t length) {
     }
 
     JsonVariant  d  = doc[F("d")];
-    uint64_t     ts = 0;
-    if (doc[F("ts")].is<uint32_t>()) {
-        ts = doc[F("ts")].as<uint32_t>();
-    }
+    uint64_t     ts = _readTimestamp(doc);
 
     // Dispatch to all matching subscribers
     for (int i = 0; i < DATANET_MAX_SUBS; i++) {
@@ -1421,6 +1464,48 @@ void DataNet::_handleMessage(const char* json, size_t length) {
 }
 
 // ---------------------------------------------------------------------------
+// _dispatchRawBinary()  — deliver an unwrapped binary WebSocket frame
+//
+// A raw frame carries no channel, so it can only be routed when exactly one
+// binary subscription is active. With more than one the destination is
+// ambiguous and the frame is dropped rather than guessed at.
+// ---------------------------------------------------------------------------
+void DataNet::_dispatchRawBinary(const uint8_t* payload, size_t length) {
+    if (payload == nullptr || length == 0) {
+        return;
+    }
+
+    int target = -1;
+    for (int i = 0; i < DATANET_MAX_SUBS; i++) {
+        if (_subs[i].active && _subs[i].binaryHandler != nullptr) {
+            if (target >= 0) {
+                Serial.println(F("[DataNet] Raw binary frame ignored: multiple binary subscriptions"));
+                _dispatchEvent(EventType::Error, "Raw binary frame is ambiguous");
+                return;
+            }
+            target = i;
+        }
+    }
+
+    if (target < 0) {
+        return;
+    }
+
+    BinaryMessageMeta meta = {
+        _subs[target].channel,
+        "",
+        (uint64_t)millis(),
+        _subs[target].binaryContentType[0] != '\0'
+            ? _subs[target].binaryContentType
+            : "application/octet-stream",
+        length,
+        JsonVariant(),
+        true
+    };
+    _subs[target].binaryHandler(payload, length, meta);
+}
+
+// ---------------------------------------------------------------------------
 // _handleBinaryEnvelope()  — decode b64 and dispatch bytes + metadata
 // ---------------------------------------------------------------------------
 void DataNet::_handleBinaryEnvelope(JsonDocument& doc) {
@@ -1428,10 +1513,7 @@ void DataNet::_handleBinaryEnvelope(JsonDocument& doc) {
     const char* b64 = doc[F("b64")] | "";
     const char* from = doc[F("from")] | "";
     const char* contentType = doc[F("ct")] | "";
-    uint64_t ts = 0;
-    if (doc[F("ts")].is<uint32_t>()) {
-        ts = doc[F("ts")].as<uint32_t>();
-    }
+    uint64_t ts = _readTimestamp(doc);
     size_t declaredBytes = doc[F("bytes")] | (size_t)0;
 
     if (ch[0] == '\0' || b64[0] == '\0') {
@@ -1488,7 +1570,7 @@ uint64_t DataNet::getLastTimestamp(const char* channel) {
 void DataNet::_resubscribeAll() {
     for (int i = 0; i < DATANET_MAX_SUBS; i++) {
         if (_subs[i].active) {
-            StaticJsonDocument<128> doc;
+            JsonDocument doc;
             doc[F("op")] = F("sub");
             doc[F("ch")] = _subs[i].channel;
             char buf[128];
@@ -1515,8 +1597,10 @@ void DataNet::_scheduleReconnect() {
         backoff = DATANET_RECONNECT_MAX_MS;
     }
 
-    // Add ±20% jitter to avoid thundering herd
-    uint32_t jitter = (backoff / 5) * (random(0, 100) / 100);  // 0–20%
+    // Add up to +20% jitter so a fleet that lost the network together does not
+    // reconnect in lockstep. random() returns an integer, so the fraction has
+    // to be applied by multiplying before dividing.
+    uint32_t jitter = static_cast<uint32_t>((static_cast<uint64_t>(backoff) * random(0, 21)) / 100);
     backoff += jitter;
 
     _reconnectAtMs   = millis() + backoff;
@@ -1591,6 +1675,9 @@ size_t DataNet::buildArtDmxPacket(
 ) {
     if (out == nullptr || outSize < 20) return 0;
     if (dmxLength < 2) dmxLength = 2;
+    // Art-Net 4 requires an even Length field; odd frames are rejected outright
+    // by some commercial nodes. Round up and let the extra channel stay zero.
+    if (dmxLength & 1) dmxLength++;
     if (dmxLength > 512) dmxLength = 512;
     if (outSize < 18 + dmxLength) return 0;
 

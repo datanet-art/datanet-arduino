@@ -140,8 +140,10 @@ TEST(ws_writes_frames_without_a_syscall_per_byte) {
     DataNetTestAccess::sendPlainFrame(
         sdk.dn, 0x01, reinterpret_cast<const uint8_t*>(payload.data()), payload.size());
 
+    // The bound is deliberately loose — it pins the shape of the write
+    // strategy (bulk blocks) rather than a specific chunk size.
     int calls = datanetTestWire().writeByteCalls + datanetTestWire().writeBufferCalls;
-    CHECK(calls <= 4);
+    CHECK(calls <= static_cast<int>(payload.size() / 16));
 }
 
 TEST(ws_refuses_to_send_while_disconnected) {

@@ -67,6 +67,13 @@
   #define DATANET_MAX_EVENT_HANDLERS 4
 #endif
 
+// Channel name buffer, including the terminating null. subscribe() refuses
+// names that do not fit rather than truncating them into a subscription that
+// could never match an inbound message.
+#ifndef DATANET_MAX_CHANNEL_LEN
+  #define DATANET_MAX_CHANNEL_LEN 64
+#endif
+
 #ifndef DATANET_JWT_BUF_SIZE
   #define DATANET_JWT_BUF_SIZE 2048
 #endif
@@ -275,7 +282,7 @@ private:
     // Internal types
     // -----------------------------------------------------------------------
     struct Subscription {
-        char                 channel[64];
+        char                 channel[DATANET_MAX_CHANNEL_LEN];
         MessageHandler       handler;
         BinaryMessageHandler binaryHandler;
         char                 binaryContentType[32];
@@ -350,8 +357,12 @@ private:
     // Fetch a fresh JWT from the REST API. Returns true on success.
     bool _fetchJwt();
 
-    // Open WSS connection using the stored JWT.
-    void _openWebSocket();
+    // Open WSS connection using the stored JWT. Returns false if the attempt
+    // could not be started (unsupported transport, TCP or handshake failure).
+    bool _openWebSocket();
+
+    // True if the channel name is non-empty and fits the subscription buffer.
+    static bool _channelFits(const char* channel);
     void _networkLoop();
     void _networkDisconnect();
     bool _networkSendText(const char* text);
@@ -369,6 +380,12 @@ private:
 
     // Handle an incoming binary envelope after the JSON frame is parsed.
     void _handleBinaryEnvelope(JsonDocument& doc);
+
+    // Deliver an unwrapped binary WebSocket frame (no envelope, no channel).
+    void _dispatchRawBinary(const uint8_t* payload, size_t length);
+
+    // Read the envelope's "ts" field as a Unix millisecond timestamp.
+    static uint64_t _readTimestamp(JsonDocument& doc);
 
     // Send a raw JSON string over the WebSocket.
     bool _sendJson(const char* json);
