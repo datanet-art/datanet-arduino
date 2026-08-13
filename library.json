@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/platformio/platformio-core/develop/platformio/assets/schema/library.json",
   "name": "DataNet",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "DataNet realtime pub/sub SDK for Arduino, ESP32, ESP8266, and Teensy with JSON and binary DMX/Art-Net transport.",
   "keywords": [
     "datanet",
@@ -41,23 +41,44 @@
     },
     {
       "name": "links2004/WebSockets",
-      "version": "^2.4.0"
+      "version": "^2.4.0",
+      "platforms": [
+        "espressif32",
+        "espressif8266"
+      ]
     },
     {
       "name": "arduino-libraries/Ethernet",
-      "version": "^2.0.2"
+      "version": "^2.0.2",
+      "platforms": [
+        "teensy",
+        "renesas-ra",
+        "atmelsam"
+      ]
     },
     {
       "name": "arduino-libraries/WiFiNINA",
-      "version": "^2.0.0"
+      "version": "^1.8.0",
+      "platforms": [
+        "atmelsam"
+      ]
     }
   ],
+  "export": {
+    "exclude": [
+      "test",
+      "demos",
+      ".github",
+      ".env.example"
+    ]
+  },
   "examples": [
     "examples/ESP32BasicPubSub/ESP32BasicPubSub.ino",
     "examples/ESP8266BasicPubSub/ESP8266BasicPubSub.ino",
     "examples/ESP32Button/ESP32Button.ino",
     "examples/ESP32Potentiometer/ESP32Potentiometer.ino",
     "examples/TemperatureSensor/TemperatureSensor.ino",
+    "examples/SerialSensor/SerialSensor.ino",
     "examples/Nano33IoTCloudPubSub/Nano33IoTCloudPubSub.ino",
     "examples/TeensyEthernetPubSub/TeensyEthernetPubSub.ino",
     "examples/BinaryDMX/BinaryDMX.ino",

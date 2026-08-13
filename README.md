@@ -12,8 +12,8 @@ Install from the DataNet repository today:
 2. Rename the folder to `DataNet` if needed.
 3. In the Arduino IDE use **Sketch -> Include Library -> Add .ZIP Library...**, or place the `DataNet` folder inside your Arduino libraries directory manually.
 
-When the library is submitted to Arduino Library Manager, the preferred install
-path will be:
+Once the library is accepted into the Arduino Library Manager index, the
+preferred install path becomes:
 
 1. Open **Library Manager** in the Arduino IDE.
 2. Search for `DataNet`.
@@ -21,16 +21,52 @@ path will be:
 
 Until then, the repo-first flow above is the canonical path.
 
+<details>
+<summary><strong>Submitting to the Arduino Library Manager index</strong></summary>
+
+The index is a registry of git repositories, not uploaded files. Arduino scans
+each registered repo for new tags, so a library is submitted once and every
+later release is picked up automatically from its tags.
+
+Prerequisites, all of which CI enforces:
+
+- `library.properties` at the repo root with `name`, `version`, `author`,
+  `maintainer`, `sentence`, `category`, `url`, and `architectures`.
+- `arduino-lint --library-manager submit --compliance strict` passes clean.
+- At least one git tag whose name is the exact version in `library.properties`
+  (`0.2.0`, not `v0.2.0`).
+- The `name` is unique in the index and not already claimed.
+
+To submit:
+
+1. Push the release tag.
+2. Open an issue on
+   [arduino/library-registry](https://github.com/arduino/library-registry)
+   using the **Add library** template, with the repo clone URL.
+3. A bot runs the same `arduino-lint` checks and merges automatically if they
+   pass. Expect the library to appear in the IDE within a day.
+
+To verify locally before submitting:
+
+```bash
+arduino-lint --library-manager submit --compliance strict
+```
+
+</details>
+
 ### Required dependencies
 
 Install these via **Library Manager** before using DataNet:
 
-| Library | Author | Version |
-|---|---|---|
-| ArduinoJson | Benoit Blanchon | 7.x |
-| WebSockets | Markus Sattler (Links2004) | 2.4.x, ESP32/ESP8266 |
-| Ethernet | Arduino | 2.x, Teensy/Arduino Ethernet |
-| WiFiNINA | Arduino | 2.x, Nano 33 IoT/MKR WiFi 1010 |
+| Library | Author | Version | Needed on |
+|---|---|---|---|
+| ArduinoJson | Benoit Blanchon | >= 7.0.0 | all boards |
+| WebSockets | Markus Sattler (Links2004) | >= 2.4.0 | ESP32, ESP8266 |
+| Ethernet | Arduino | >= 2.0.0 | Teensy, Arduino Ethernet |
+| WiFiNINA | Arduino | >= 1.8.0 | Nano 33 IoT, MKR WiFi 1010 |
+
+ArduinoJson **7** is required. The SDK uses the elastic `JsonDocument` type,
+which does not exist in ArduinoJson 6.
 
 `HTTPClient` is bundled with the ESP32 and ESP8266 Arduino board packages, so
 no separate install is needed there.
@@ -44,8 +80,17 @@ TLS-capable bridge before connecting to the hosted service.
 
 ### PlatformIO
 
-This repository also includes `library.json` for PlatformIO. After the package
-is published to the PlatformIO Registry, use:
+This repository also includes `library.json` for PlatformIO, with dependencies
+scoped per platform so an ESP build does not pull in `Ethernet` and `WiFiNINA`.
+
+Install straight from the repository today:
+
+```ini
+lib_deps =
+  https://github.com/datanet-art/datanet-arduino.git
+```
+
+After the package is published to the PlatformIO Registry (`pio pkg publish`):
 
 ```ini
 lib_deps =
@@ -138,7 +183,7 @@ transport. Port `443` selects secure WSS on ESP and WiFiNINA boards.
 
 | Method | Returns | Description |
 |---|---|---|
-| `connect()` | `bool` | Fetch JWT and open the WebSocket connection. ESP and WiFiNINA boards use HTTPS/WSS for the hosted service; Teensy/Ethernet currently uses HTTP/WS. Network must already be connected. |
+| `connect()` | `bool` | Fetch JWT and open the WebSocket connection. Returns `false` if authentication fails, or if the transport cannot start the connection. ESP and WiFiNINA boards use HTTPS/WSS for the hosted service; Teensy/Ethernet currently uses HTTP/WS. Network must already be connected. |
 | `loop()` | `void` | **Must be called every `loop()` iteration.** Drives WebSocket events and heartbeat. |
 | `connected()` | `bool` | `true` if the WebSocket is currently open. |
 | `getPresence(channel)` | `int` | Blocking HTTP lookup of authoritative occupancy. Returns `-1` on error; call selectively or on a throttled timer. |
@@ -146,6 +191,7 @@ transport. Port `443` selects secure WSS on ESP and WiFiNINA boards.
 | `unsubscribe(channel)` | `void` | Remove a channel subscription and send an `unsub` envelope. |
 | `subscribeBinary(channel, handler, contentType)` | `void` | Subscribe to binary envelopes on a channel. Handler receives bytes plus metadata. |
 | `unsubscribeBinary(channel)` | `void` | Remove a binary subscription. |
+| `getLastTimestamp(channel)` | `uint64_t` | Server-side Unix **millisecond** timestamp of the last message on the channel, or `0` if none has arrived. Useful for staleness checks. |
 | `publish(channel, data)` | `bool` | Publish a `JsonVariant` as the `d` field. Returns `false` if not connected or serialization fails. |
 | `publishFloat(channel, key, value)` | `bool` | Convenience: publish `{key: value}` as a float. |
 | `publishString(channel, key, value)` | `bool` | Convenience: publish `{key: "value"}` as a string. |
@@ -214,6 +260,7 @@ Override before `#include <DataNet.h>` or via `-D` compiler flags:
 |---|---|---|
 | `DATANET_MAX_SUBS` | `8` | Maximum simultaneous channel subscriptions |
 | `DATANET_MAX_EVENT_HANDLERS` | `4` | Maximum handlers per event type |
+| `DATANET_MAX_CHANNEL_LEN` | `64` | Channel name buffer, including the null terminator. `subscribe()` refuses longer names rather than truncating them |
 | `DATANET_JWT_BUF_SIZE` | `2048` | JWT character buffer size (bytes) |
 | `DATANET_HEARTBEAT_INTERVAL_MS` | `30000` | Heartbeat send interval (ms) |
 | `DATANET_RECONNECT_BASE_MS` | `1000` | Base reconnect backoff (ms) |
@@ -228,6 +275,19 @@ Example:
 #define DATANET_MAX_SUBS 4        // save RAM on constrained devices
 #define DATANET_JWT_BUF_SIZE 2048 // increase if your JWT is longer than the default
 #include <DataNet.h>
+```
+
+> Channel names longer than `DATANET_MAX_CHANNEL_LEN - 1` characters are
+> **refused** by `subscribe()` with a message on `Serial`, because a truncated
+> name could never match an inbound envelope.
+
+### Quick start uses ArduinoJson 7
+
+```cpp
+JsonDocument data;               // not StaticJsonDocument<N>
+data["source"] = "esp32";
+data["count"]  = count++;
+datanet.publish(CHANNEL, data.as<JsonVariant>());
 ```
 
 ---
@@ -308,7 +368,8 @@ without extra dependencies.
 
 `File → Examples → DataNet → Nano33IoTCloudPubSub`
 
-Hosted-cloud publish/subscribe for Nano 33 IoT using WiFiNINA HTTPS and WSS.
+Hosted-cloud publish/subscribe for Nano 33 IoT **and MKR WiFi 1010** using
+WiFiNINA HTTPS and WSS.
 Before uploading, use the Arduino IDE Firmware Updater to install SSL root
 certificates for `api.datanet.art` and `ws.datanet.art` on the NINA module.
 Like the ESP examples, it uses the one-argument constructor and the SDK's
@@ -352,8 +413,13 @@ The SDK communicates using the DataNet WebSocket protocol:
 
 - Reduce `DATANET_MAX_SUBS` if you only use a few channels.
 - Do not shrink `DATANET_JWT_BUF_SIZE` aggressively. Current platform JWTs can exceed 512 bytes once scopes and limits are embedded, so `2048` is the safe default for production examples.
-- Use `StaticJsonDocument` (stack-allocated) in your message handlers rather than `DynamicJsonDocument` (heap-allocated).
-- Avoid subscribing to channels with very large payloads. Incoming protocol envelopes are sized by `DATANET_INCOMING_JSON_SIZE`, and decoded binary bytes are held in `DATANET_BINARY_BUF_SIZE`.
+- **In ArduinoJson 7 every `JsonDocument` is heap-backed and grows on demand.**
+  `StaticJsonDocument` and `DynamicJsonDocument` are deprecated aliases for it,
+  and their size parameter is ignored — the old "static is on the stack" advice
+  no longer applies. Use plain `JsonDocument` and keep payloads small.
+- Avoid subscribing to channels with very large payloads. Incoming envelopes
+  larger than `DATANET_INCOMING_JSON_SIZE` are rejected before parsing, and
+  decoded binary bytes are held in `DATANET_BINARY_BUF_SIZE`.
 - A 512-byte DMX frame becomes about 684 base64 characters before JSON envelope overhead. The default binary scratch buffer is sized for full DMX and ArtDMX payloads.
 - Call `WiFi.setOutputPower(10)` to reduce WiFi TX power if signal strength allows — this cuts current draw significantly on battery-powered nodes.
 - The TLS/SSL handshake requires ~30 KB of heap momentarily. Ensure your sketch does not allocate large buffers before calling `connect()`.
@@ -392,14 +458,52 @@ DataNet is developed and supported by [Studio Jordan Shaw](https://www.jordansha
 
 MIT — see [LICENSE](LICENSE) for details.
 
-## CI
+## Testing
 
-For a quick local compile check with `arduino-cli`, point the compiler at the
-repo as a library:
+### Native unit tests
+
+The protocol and encoding logic is tested on the host, with no board attached.
+`src/DataNet.cpp` is compiled for its generic-Ethernet transport against a
+small Arduino shim (virtual clock, deterministic PRNG, scriptable socket), so
+the suite runs in seconds and needs only a C++ compiler.
+
+```bash
+make -C test/native test
+```
+
+Coverage: base64 codec, DMX and Art-Net packet construction, URL parsing and
+percent-encoding, HTTP response reading (content-length, chunked, error
+statuses), RFC 6455 client framing, envelope dispatch and timestamps, the
+publish paths, and reconnect backoff including the `millis()` rollover.
+
+Layout:
+
+| Path | Purpose |
+|---|---|
+| `test/native/shims/` | Minimal `Arduino.h`, `Client.h`, `Ethernet.h` for the host |
+| `test/native/test_*.cpp` | The test cases |
+| `test/native/tiny_test.h` | Dependency-free assertion framework |
+| `test/native/test_access.h` | Bridge to private helpers, gated on `DATANET_ENABLE_TEST_ACCESS` |
+
+### Compile checks
+
+Point `arduino-cli` at the repo as a library:
 
 ```bash
 arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/ESP32BasicPubSub
-arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/TemperatureSensor
-arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/BinaryDMX
-arduino-cli compile --library . --fqbn esp32:esp32:esp32 examples/BinaryDMXOutputBridge
 ```
+
+CI compiles every example on each board it targets — ESP32, ESP8266,
+Nano 33 IoT, MKR WiFi 1010, Teensy 4.1, and Uno — and runs `arduino-lint` in
+Library Manager submission mode.
+
+### Releasing
+
+Tags drive the Arduino Library Manager, so a release is:
+
+1. Bump `version=` in `library.properties` and `"version"` in `library.json`.
+2. Add a `## [x.y.z]` section to `CHANGELOG.md`.
+3. Tag with the bare version (`0.2.0`, no `v` prefix) and push.
+
+The release workflow refuses to publish if the tag, the two metadata files, and
+the changelog disagree; it then attaches an IDE-installable ZIP to the release.
