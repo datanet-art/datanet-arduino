@@ -66,8 +66,7 @@
   ],
   "export": {
     "exclude": [
-      "test",
-      "demos",
+      "extras",
       ".github",
       ".env.example"
     ]

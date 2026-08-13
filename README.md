@@ -468,7 +468,7 @@ small Arduino shim (virtual clock, deterministic PRNG, scriptable socket), so
 the suite runs in seconds and needs only a C++ compiler.
 
 ```bash
-make -C test/native test
+make -C extras/test/native test
 ```
 
 Coverage: base64 codec, DMX and Art-Net packet construction, URL parsing and
@@ -480,10 +480,16 @@ Layout:
 
 | Path | Purpose |
 |---|---|
-| `test/native/shims/` | Minimal `Arduino.h`, `Client.h`, `Ethernet.h` for the host |
-| `test/native/test_*.cpp` | The test cases |
-| `test/native/tiny_test.h` | Dependency-free assertion framework |
-| `test/native/test_access.h` | Bridge to private helpers, gated on `DATANET_ENABLE_TEST_ACCESS` |
+| `extras/test/native/shims/` | Minimal `Arduino.h`, `Client.h`, `Ethernet.h` for the host |
+| `extras/test/native/test_*.cpp` | The test cases |
+| `extras/test/native/tiny_test.h` | Dependency-free assertion framework |
+| `extras/test/native/test_access.h` | Bridge to private helpers, gated on `DATANET_ENABLE_TEST_ACCESS` |
+
+The suite lives under `extras/` on purpose. The Arduino library specification
+reserves that folder for content the build system ignores completely, so
+nothing here can reach a sketch or consume flash. It also keeps the host shim's
+`Arduino.h` safely off the compiler's include path, where it would otherwise
+shadow the real one. Please don't relocate it to a top-level `test/`.
 
 ### Compile checks
 

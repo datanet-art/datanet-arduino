@@ -50,16 +50,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PlatformIO dependencies are scoped per platform, so an ESP build no longer
   pulls in `Ethernet` and `WiFiNINA`.
 - Removed seven unreferenced `PROGMEM` string constants.
+- **Moved `test/` and `demos/` under `extras/`,** the folder the Arduino library
+  specification reserves for content the build system ignores. Neither was ever
+  compiled into a sketch, but `extras/` states that contractually rather than
+  relying on the reader knowing the `src/`-only rule. Run the suite with
+  `make -C extras/test/native test`.
 
 ### Added
 
-- **Native host test suite** (`test/native`). 76 tests covering base64,
+- **Native host test suite** (`extras/test/native`). 76 tests covering base64,
   DMX/Art-Net packet construction, URL parsing, HTTP response reading, RFC 6455
   framing, envelope dispatch, publish paths, and reconnect backoff. Runs with
-  `make -C test/native test` and needs only a C++ compiler.
+  `make -C extras/test/native test` and needs only a C++ compiler.
 - `DATANET_MAX_CHANNEL_LEN` (default `64`) to size the channel name buffer.
 - `license` field in `library.properties`.
 - CI jobs for `arduino-lint` and the native test suite.
+- **`keywords.txt`**, so the SDK's classes, methods, and configuration macros
+  get syntax highlighting in the Arduino IDE. `loop` and `on` are deliberately
+  excluded: both collide with a sketch's own `loop()` and with ordinary
+  variables such as `bool on`.
 
 ## [0.1.1]
 

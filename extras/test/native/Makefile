@@ -13,7 +13,7 @@ THIRD_PARTY         := third_party
 ARDUINOJSON_HEADER  := $(THIRD_PARTY)/ArduinoJson.h
 ARDUINOJSON_URL     := https://github.com/bblanchon/ArduinoJson/releases/download/v$(ARDUINOJSON_VERSION)/ArduinoJson-v$(ARDUINOJSON_VERSION).h
 
-SRC_DIR := ../../src
+SRC_DIR := ../../../src
 BUILD   := build
 BIN     := $(BUILD)/datanet-tests
 

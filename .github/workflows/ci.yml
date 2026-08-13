@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: make -C test/native test
+      - run: make -C extras/test/native test
 
   # Gate on the same checks the Arduino Library Manager submission runs.
   lint:

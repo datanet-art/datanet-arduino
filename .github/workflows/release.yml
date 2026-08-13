@@ -38,7 +38,7 @@ jobs:
           grep -q "^## \[${GITHUB_REF_NAME}\]" CHANGELOG.md \
             || { echo "::error::CHANGELOG.md has no section for ${GITHUB_REF_NAME}."; exit 1; }
 
-      - run: make -C test/native test
+      - run: make -C extras/test/native test
 
       - uses: arduino/arduino-lint-action@v2
         with:
@@ -51,7 +51,7 @@ jobs:
         run: |
           staging="$RUNNER_TEMP/DataNet"
           mkdir -p "$staging"
-          cp -r src examples library.properties library.json README.md CHANGELOG.md LICENSE "$staging/"
+          cp -r src examples library.properties library.json keywords.txt README.md CHANGELOG.md LICENSE "$staging/"
           (cd "$RUNNER_TEMP" && zip -r "$GITHUB_WORKSPACE/DataNet-${GITHUB_REF_NAME}.zip" DataNet)
 
       - name: Publish the release
