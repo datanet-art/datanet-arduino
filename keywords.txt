@@ -1,0 +1,59 @@
+#######################################
+# Syntax coloring map for the DataNet Arduino SDK
+#
+# Fields MUST be separated by a single TAB character, not spaces.
+#   KEYWORD1 - classes and datatypes      (orange)
+#   KEYWORD2 - methods and functions      (brown)
+#   LITERAL1 - constants and macros       (blue)
+#
+# Deliberately omitted: loop() and on(). Both are listed on the class, but the
+# names collide with the sketch's own loop() and with ordinary variables such
+# as `bool on`, so highlighting them does more harm than good.
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+DataNet	KEYWORD1
+BinaryMessageMeta	KEYWORD1
+MessageHandler	KEYWORD1
+BinaryMessageHandler	KEYWORD1
+EventHandler	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+connect	KEYWORD2
+connected	KEYWORD2
+getPresence	KEYWORD2
+subscribe	KEYWORD2
+unsubscribe	KEYWORD2
+subscribeBinary	KEYWORD2
+unsubscribeBinary	KEYWORD2
+getLastTimestamp	KEYWORD2
+publish	KEYWORD2
+publishFloat	KEYWORD2
+publishString	KEYWORD2
+publishBinary	KEYWORD2
+publishDmx	KEYWORD2
+publishArtNet	KEYWORD2
+buildDmxFrame	KEYWORD2
+buildArtDmxPacket	KEYWORD2
+extractArtDmx	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+DATANET_MAX_SUBS	LITERAL1
+DATANET_MAX_CHANNEL_LEN	LITERAL1
+DATANET_MAX_EVENT_HANDLERS	LITERAL1
+DATANET_JWT_BUF_SIZE	LITERAL1
+DATANET_HEARTBEAT_INTERVAL_MS	LITERAL1
+DATANET_RECONNECT_BASE_MS	LITERAL1
+DATANET_RECONNECT_MAX_MS	LITERAL1
+DATANET_JWT_REFRESH_AFTER_RECONNECTS	LITERAL1
+DATANET_INCOMING_JSON_SIZE	LITERAL1
+DATANET_BINARY_BUF_SIZE	LITERAL1

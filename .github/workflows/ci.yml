@@ -6,51 +6,89 @@ on:
   pull_request:
 
 jobs:
+  # Fast feedback: the host suite catches protocol and encoding regressions in
+  # seconds, without waiting on board cores to download.
+  native-tests:
+    name: Native unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: make -C extras/test/native test
+
+  # Gate on the same checks the Arduino Library Manager submission runs.
+  lint:
+    name: arduino-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: arduino/arduino-lint-action@v2
+        with:
+          library-manager: submit
+          compliance: strict
+
   compile-examples:
+    name: ${{ matrix.platform }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - platform: esp32
             fqbn: esp32:esp32:esp32
             core: esp32:esp32
+            index: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+            libraries: ArduinoJson WebSockets
+            examples: >-
+              ESP32BasicPubSub TemperatureSensor BinaryDMX BinaryDMXOutputBridge
+              ESP32Button ESP32Potentiometer PresenceReactiveLighting
           - platform: esp8266
             fqbn: esp8266:esp8266:nodemcuv2
             core: esp8266:esp8266
+            index: https://arduino.esp8266.com/stable/package_esp8266com_index.json
+            libraries: ArduinoJson WebSockets
+            examples: >-
+              ESP8266BasicPubSub TemperatureSensor BinaryDMX BinaryDMXOutputBridge
           - platform: nano33iot
             fqbn: arduino:samd:nano_33_iot
             core: arduino:samd
-          - platform: teensy
+            libraries: ArduinoJson WiFiNINA
+            examples: Nano33IoTCloudPubSub
+          - platform: mkrwifi1010
+            fqbn: arduino:samd:mkrwifi1010
+            core: arduino:samd
+            libraries: ArduinoJson WiFiNINA
+            examples: Nano33IoTCloudPubSub
+          - platform: teensy41
             fqbn: teensy:avr:teensy41
             core: teensy:avr
+            index: https://www.pjrc.com/teensy/package_teensy_index.json
+            libraries: ArduinoJson Ethernet
+            examples: TeensyEthernetPubSub
+          - platform: uno
+            fqbn: arduino:avr:uno
+            core: arduino:avr
+            libraries: ArduinoJson
+            examples: SerialSensor
     steps:
       - uses: actions/checkout@v6
       - uses: arduino/setup-arduino-cli@v2
-      - run: arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
-      - run: arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
-      - run: arduino-cli config add board_manager.additional_urls https://www.pjrc.com/teensy/package_teensy_index.json
+
+      - name: Add board index
+        if: matrix.index != ''
+        run: arduino-cli config add board_manager.additional_urls ${{ matrix.index }}
+
       - run: arduino-cli core update-index
       - run: arduino-cli core install ${{ matrix.core }}
-      - run: arduino-cli lib install ArduinoJson
-      - run: arduino-cli lib install WebSockets
-      - run: arduino-cli lib install Ethernet
-      - if: matrix.platform == 'nano33iot'
-        run: arduino-cli lib install WiFiNINA
-      - if: matrix.platform == 'esp32'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP32BasicPubSub
-      - if: matrix.platform == 'esp8266'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP8266BasicPubSub
-      - if: matrix.platform == 'esp32' || matrix.platform == 'esp8266'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/TemperatureSensor
-      - if: matrix.platform == 'esp32' || matrix.platform == 'esp8266'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/BinaryDMX
-      - if: matrix.platform == 'esp32' || matrix.platform == 'esp8266'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/BinaryDMXOutputBridge
-      - if: matrix.platform == 'nano33iot'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/Nano33IoTCloudPubSub
-      - if: matrix.platform == 'teensy'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/TeensyEthernetPubSub
-      - if: matrix.platform == 'esp32'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP32Button
-      - if: matrix.platform == 'esp32'
-        run: arduino-cli compile --library . --fqbn ${{ matrix.fqbn }} examples/ESP32Potentiometer
+      - run: arduino-cli lib install ${{ matrix.libraries }}
+
+      # Looping in one step keeps every example in the matrix visible. The
+      # previous per-example `if:` steps silently skipped sketches on platforms
+      # where no condition matched.
+      - name: Compile examples
+        run: |
+          for example in ${{ matrix.examples }}; do
+            echo "::group::$example"
+            arduino-cli compile --warnings all --library . \
+              --fqbn ${{ matrix.fqbn }} "examples/$example"
+            echo "::endgroup::"
+          done

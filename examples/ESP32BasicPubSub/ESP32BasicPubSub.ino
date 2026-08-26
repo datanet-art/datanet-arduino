@@ -65,7 +65,7 @@ void loop() {
   static uint32_t count = 0;
   if (datanet.connected() && millis() - lastPublishMs >= 3000UL) {
     lastPublishMs = millis();
-    StaticJsonDocument<96> data;
+    JsonDocument data;
     data[F("source")] = F("esp32");
     data[F("count")] = count++;
     datanet.publish(CHANNEL, data.as<JsonVariant>());

@@ -44,7 +44,7 @@ void onEvent(const char* event, const char* info) {
 }
 
 void publishButton() {
-  StaticJsonDocument<96> data;
+  JsonDocument data;
   data[F("pressed")] = stablePressed;
   data[F("press_count")] = pressCount;
 

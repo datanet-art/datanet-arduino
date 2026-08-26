@@ -1,0 +1,61 @@
+name: Release
+
+# The Arduino Library Manager indexes git tags, so the tag and the version in
+# library.properties must agree. This workflow refuses to publish when they
+# drift, then attaches an IDE-installable ZIP to the GitHub Release.
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check tag matches library metadata
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          properties_version=$(grep -m1 '^version=' library.properties | cut -d= -f2)
+          json_version=$(grep -m1 '"version"' library.json | cut -d'"' -f4)
+
+          echo "tag:                $tag"
+          echo "library.properties: $properties_version"
+          echo "library.json:       $json_version"
+
+          if [ "$tag" != "$properties_version" ] || [ "$tag" != "$json_version" ]; then
+            echo "::error::Tag and library metadata versions disagree."
+            exit 1
+          fi
+
+      - name: Check the changelog mentions this version
+        run: |
+          grep -q "^## \[${GITHUB_REF_NAME}\]" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md has no section for ${GITHUB_REF_NAME}."; exit 1; }
+
+      - run: make -C extras/test/native test
+
+      - uses: arduino/arduino-lint-action@v2
+        with:
+          library-manager: submit
+          compliance: strict
+
+      # The ZIP must contain a single top-level folder named for the library,
+      # or "Add .ZIP Library..." in the IDE rejects it.
+      - name: Build the IDE-installable ZIP
+        run: |
+          staging="$RUNNER_TEMP/DataNet"
+          mkdir -p "$staging"
+          cp -r src examples library.properties library.json keywords.txt README.md CHANGELOG.md LICENSE "$staging/"
+          (cd "$RUNNER_TEMP" && zip -r "$GITHUB_WORKSPACE/DataNet-${GITHUB_REF_NAME}.zip" DataNet)
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: DataNet-${{ github.ref_name }}.zip
+          generate_release_notes: true

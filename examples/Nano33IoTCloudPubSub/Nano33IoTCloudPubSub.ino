@@ -1,5 +1,8 @@
 /*
- * Nano33IoTCloudPubSub.ino - DataNet hosted cloud on Arduino Nano 33 IoT
+ * Nano33IoTCloudPubSub.ino - DataNet hosted cloud on WiFiNINA boards
+ *
+ * Targets the Arduino Nano 33 IoT and MKR WiFi 1010, which share the WiFiNINA
+ * module and the SDK's HTTPS/WSS transport.
  *
  * Before uploading:
  *   1. Install WiFiNINA through Arduino Library Manager.
@@ -10,8 +13,8 @@
 
 #include <Arduino.h>
 
-#if !defined(ARDUINO_SAMD_NANO_33_IOT)
-  #error "Nano33IoTCloudPubSub requires an Arduino Nano 33 IoT."
+#if !defined(ARDUINO_SAMD_NANO_33_IOT) && !defined(ARDUINO_SAMD_MKRWIFI1010)
+  #error "Nano33IoTCloudPubSub requires an Arduino Nano 33 IoT or MKR WiFi 1010."
 #endif
 
 #include <WiFiNINA.h>
@@ -95,7 +98,7 @@ void loop() {
 
   if (datanet.connected() && millis() - lastPublishMs >= 5000UL) {
     lastPublishMs = millis();
-    StaticJsonDocument<96> data;
+    JsonDocument data;
     data[F("source")] = F("nano33iot");
     data[F("uptime_ms")] = millis();
     datanet.publish(CHANNEL, data.as<JsonVariant>());
